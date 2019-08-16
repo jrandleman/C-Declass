@@ -2,16 +2,15 @@
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
 #### **_Member Default Values, Methods, Object Arrays/Pointers/Containment, and more!_**
 -------------------------------------------------------------------------
-### Compile: 
-* _**Note**: add_ '`-l`' _for class information!_
+### Compile (_add '`-l`' for class info!_): 
 ```c
 $ gcc -o declass declass.c
 $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 
 ### Using the Declassifier:
-* Processed C programs using classes are copied with a "`_DECLASS`" extension & converted to valid C
-* Provided "`declass_SampleExec.c`" demos class abilities, and "`declass_SampleExec_DECLASS.c`" shows conversion to valid C
+* _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
+* _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion to valid C_
 
 ### C-Declassify's 8 Caveats, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
