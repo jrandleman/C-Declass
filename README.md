@@ -45,14 +45,18 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 
 ### A Simple Sample Class:
-* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file for more!_
+* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn about using object containment, arrays, pointers, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
+#include <stdio.h>
+#include <string.h>
+#include <float.h>
+
 class Student {            // 'class' keyword tips off declass.c
   char fullname[50];       // empty values default to 0 (an array of 0's in this case)
   char school[15] = "SCU"; // all 'Student' objects will default with "SCU" as 'school' member value
   int schoolYear = 14;     // default school year as well
-  long studentId;
+  bool deansList;
   char *(*copy_fcnPtr)() = strcpy; // function pointer members can also be initialized!
 
   struct grade_info {
@@ -69,11 +73,11 @@ class Student {            // 'class' keyword tips off declass.c
     copy_fcnPtr(fullname, fname); // invokes local 'copy_fcnPtr' & 'fullname' members declared above
   }
   void assignGpa(float grade) { grades.gpa = grade; } // access member struct variables
-  void assignId(long id) { studentId = id; }
+  void assignDeansList(bool top10Pct) { deansList = top10Pct; }
   int getYear() { return schoolYear; }                // return a local member value from method
   void show() {
     if(getYear() > 12) {                              // only shows those in college
-      printf("Name: %s, School: %s, Year: %d, id: %ld", fullname, school, schoolYear, studentId);
+      printf("Name: %s, School: %s, Year: %d", fullname, school, schoolYear);
       printf(" Major: %s, GPA: %.1f/%.1f\n", grades.major, grades.gpa, grades.out_of);
     }
   }
@@ -82,10 +86,10 @@ class Student {            // 'class' keyword tips off declass.c
   // notation as per whether they aren't/are a class pointer
 
   // methods can also create class objects!
-  Student createMakeAStudent(char *name, long id, float gpa, int year) {
+  Student createMakeAStudent(char *name, bool top10Pct, float gpa, int year) {
     Student methodMadeStudent; 
     methodMadeStudent.assignName(name);  // invoke object's method to assign a member
-    methodMadeStudent.assignId(id);
+    methodMadeStudent.assignDeansList(top10Pct);
     methodMadeStudent.assignGpa(gpa);
     methodMadeStudent.schoolYear = year; // assign an object's member directly
     return methodMadeStudent;
@@ -99,5 +103,24 @@ class Student {            // 'class' keyword tips off declass.c
     *this = *blankStudent; 
     *blankStudent = temp;
   }
+}
+
+
+int main() {
+  Student JordanCR;                                              // declare object
+  JordanCR.copy_fcnPtr(JordanCR.fullname, "Jordan C Randleman"); // invoke members
+  JordanCR.assignGpa(3.9);                                       // invoke methods
+  JordanCR.assignDeansList(true);
+  JordanCR.show();
+  
+  // create another object instance, initialized by a method
+  Student foo = JordanCR.createMakeAStudent("Bar", false, 0.5, 100); 
+  foo.show();
+  
+  JordanCR.swap(&foo); // swap members between between 'JordanCR' & 'foo' objects
+  JordanCR.show();     // outputs swapped values
+  foo.show();
+  
+  return 0;
 }
 ```
