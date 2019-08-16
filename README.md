@@ -13,7 +13,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * Processed C programs using classes are copied with a "`_DECLASS`" extension & converted to valid C
 * Provided "`declass_SampleExec.c`" demos class abilities, and "`declass_SampleExec_DECLASS.c`" shows conversion to valid C
 
-### C-Declassify's 8 Caveats, Straight from declass.c:
+### C-Declassify's 8 Caveats, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
 ```c
 /*****************************************************************************
@@ -51,7 +51,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 class Student {            // 'class' keyword tips off declass.c
   char fullname[50];       // empty values default to 0 (an array of 0's in this case)
   char school[15] = "SCU"; // all 'Student' objects will default with "SCU" as 'school' member value
-  int year = 14;           // default school year as well
+  int schoolYear = 14;     // default school year as well
   long studentId;
   char *(*copy_fcnPtr)() = strcpy; // function pointer members can also be initialized!
 
@@ -70,10 +70,10 @@ class Student {            // 'class' keyword tips off declass.c
   }
   void assignGpa(float grade) { grades.gpa = grade; } // access member struct variables
   void assignId(long id) { studentId = id; }
-  long getId() { return studentId; }                  // return a local member value from method
+  int getYear() { return schoolYear; }                // return a local member value from method
   void show() {
-    if(getId()) {
-      printf("Name: %s, School: %s, Year: %d, id: %ld", fullname, school, year, studentId);
+    if(getYear() > 12) {                              // only shows those in college
+      printf("Name: %s, School: %s, Year: %d, id: %ld", fullname, school, schoolYear, studentId);
       printf(" Major: %s, GPA: %.1f/%.1f\n", grades.major, grades.gpa, grades.out_of);
     }
   }
@@ -82,11 +82,12 @@ class Student {            // 'class' keyword tips off declass.c
   // notation as per whether they aren't/are a class pointer
 
   // methods can also create class objects!
-  Student createMakeAStudent(char *name, long id, float gpa) {
+  Student createMakeAStudent(char *name, long id, float gpa, int year) {
     Student methodMadeStudent; 
-    methodMadeStudent.assignName(name);
+    methodMadeStudent.assignName(name);  // invoke object's method to assign a member
     methodMadeStudent.assignId(id);
     methodMadeStudent.assignGpa(gpa);
+    methodMadeStudent.schoolYear = year; // assign an object's member directly
     return methodMadeStudent;
   }
   
