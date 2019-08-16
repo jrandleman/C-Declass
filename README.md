@@ -10,7 +10,8 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 
 ### Using the Declassifier:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
-* _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion to valid C_
+* _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
+* _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference, and all else will follow!_
 
 ### C-Declassify's 8 Caveats, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
