@@ -64,7 +64,7 @@ class Student {
   }
 
   // method to create a new object
-  Student createMakeAStudent(char *name, long id, float gpa) {
+  Student createAStudent(char *name, long id, float gpa) {
     Student methodMadeStudent;
     methodMadeStudent.assignName(name);
     methodMadeStudent.assignId(id);
@@ -234,7 +234,7 @@ int main() {
 
 
   // Having a method make & return an object
-  Student willAR = jordanCR.createMakeAStudent("Will Randleman", 1524027, 4.0);
+  Student willAR = jordanCR.createAStudent("Will Randleman", 1524027, 4.0);
   printf("\nHaving a method make & return a Student object:\n");
   printf("\t");
   willAR.show();
