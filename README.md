@@ -2,18 +2,19 @@
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
 #### **_Member Default Values, Methods, Object Arrays/Pointers/Containment, and more!_**
 -------------------------------------------------------------------------
+
+## Using the Declassifier:
 ### Compile (_add '`-l`' for class info!_): 
 ```c
 $ gcc -o declass declass.c
 $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
-
-### Using the Declassifier:
+### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 
-### C-Declassify's 8 Caveats, Straight From declass.c:
+## C-Declassify's 8 Caveats, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
 ```c
 /*****************************************************************************
@@ -44,7 +45,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *****************************************************************************/
 ```
 
-### A Simple Sample Class:
+## A Simple Sample Class:
 * _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn about using object containment, arrays, pointers, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
@@ -99,10 +100,10 @@ class Student {            // 'class' keyword tips off declass.c
   // note that whereas methods can reference an invoking object's members w/o
   // prefixes, using '*this' in a method refers to the ENTIRE object. the following
   // method employs such to swap an invoking object with its method argument:
-  void swap(Student *blankStudent) { // object passed by address to change contents
+  void swap(Student *StudentPtrArg) { // object passed by address to change contents
     Student temp = *this;
-    *this = *blankStudent; 
-    *blankStudent = temp;
+    *this = *StudentPtrArg; 
+    *StudentPtrArg = temp;
   }
 }
 
@@ -128,4 +129,32 @@ int main() {
   
   return 0;
 }
+```
+
+## '`-l`' Output For the Simple Sample Class:
+```
+--=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 5 ]=--
+
+CLASS No1, Student:
+ L_ MEMBERS: 6
+ |  L_ fullname[]
+ |  L_ school[]
+ |  L_ schoolYear
+ |  L_ deansList
+ |  L_ *copy_fcnPtr
+ |  L_ grades
+ L_ METHODS: 7
+ | L_ assignName()
+ | L_ assignGpa()
+ | L_ assignDeansList()
+ | L_ getYear()
+ | L_ show()
+ | L_ createAStudent()
+ | L_ swap()
+ L_ OBJECTS: 5
+   L_ methodMadeStudent
+   L_ *StudentPtrArg
+   L_ temp
+   L_ JordanCR
+   L_ foo
 ```
