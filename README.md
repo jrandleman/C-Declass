@@ -11,7 +11,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ### Using the Declassifier:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
-* _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference, and all else will follow!_
+* _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 
 ### C-Declassify's 8 Caveats, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
@@ -86,7 +86,7 @@ class Student {            // 'class' keyword tips off declass.c
   // notation as per whether they aren't/are a class pointer
 
   // methods can also create class objects!
-  Student createMakeAStudent(char *name, bool top10Pct, float gpa, int year) {
+  Student createAStudent(char *name, bool top10Pct, float gpa, int year) {
     Student methodMadeStudent; 
     methodMadeStudent.assignName(name);  // invoke object's method to assign a member
     methodMadeStudent.assignDeansList(top10Pct);
@@ -114,7 +114,7 @@ int main() {
   JordanCR.show();
   
   // create another object instance, initialized by a method
-  Student foo = JordanCR.createMakeAStudent("Bar", false, 0.5, 100); 
+  Student foo = JordanCR.createAStudent("Bar", false, 0.5, 100); 
   foo.show();
   
   JordanCR.swap(&foo); // swap members between between 'JordanCR' & 'foo' objects
