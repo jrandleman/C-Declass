@@ -74,7 +74,7 @@ const Student DECLASS__Student_DFLT = {{0}, "SCU", 14, 0, strcpy, {"Computer Sci
       printf(" Major: %s, GPA: %.1f/%.1f\n", this->grades.major, this->grades.gpa, this->grades.out_of);
     }
   }
-  Student DECLASS_Student_createMakeAStudent(char *name, long id, float gpa, Student *this) {
+  Student DECLASS_Student_createAStudent(char *name, long id, float gpa, Student *this) {
     Student methodMadeStudent; DECLASS__Student_CTOR(methodMadeStudent);
     DECLASS_Student_assignName(name, &methodMadeStudent);
     DECLASS_Student_assignId(id, &methodMadeStudent);
@@ -263,7 +263,7 @@ int main() {
 
 
   // Having a method make & return an object
-  Student willAR = DECLASS_Student_createMakeAStudent("Will Randleman", 1524027, 4.0, &jordanCR);
+  Student willAR = DECLASS_Student_createAStudent("Will Randleman", 1524027, 4.0, &jordanCR);
   printf("\nHaving a method make & return a Student object:\n");
   printf("\t");
   DECLASS_Student_show(&willAR);
