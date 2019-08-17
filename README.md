@@ -108,6 +108,7 @@ class Student {            // 'class' keyword tips off declass.c
 }
 
 
+
 int main() {
   Student JordanCR;                                              // declare object
   JordanCR.copy_fcnPtr(JordanCR.fullname, "Jordan C Randleman"); // invoke members
