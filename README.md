@@ -51,6 +51,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+#include <stdbool.h>
 
 class Student {            // 'class' keyword tips off declass.c
   char fullname[50];       // empty values default to 0 (an array of 0's in this case)
@@ -111,14 +112,18 @@ int main() {
   JordanCR.copy_fcnPtr(JordanCR.fullname, "Jordan C Randleman"); // invoke members
   JordanCR.assignGpa(3.9);                                       // invoke methods
   JordanCR.assignDeansList(true);
+  printf("JordanCR object: ");
   JordanCR.show();
   
   // create another object instance, initialized by a method
   Student foo = JordanCR.createAStudent("Bar", false, 0.5, 100); 
+  printf("foo object:      ");
   foo.show();
   
   JordanCR.swap(&foo); // swap members between between 'JordanCR' & 'foo' objects
+  printf("JordanCR object: ");
   JordanCR.show();     // outputs swapped values
+  printf("foo object:      ");
   foo.show();
   
   return 0;
