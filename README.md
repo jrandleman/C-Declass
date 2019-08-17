@@ -13,7 +13,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
-
+--------------
 ## C-Declassify's 8 Caveats, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
 ```c
@@ -44,7 +44,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *                           an interface for c3                            *
  *****************************************************************************/
 ```
-
+--------------
 ## A Simple Sample Class:
 * _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn about using object containment, arrays, pointers, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
@@ -130,8 +130,10 @@ int main() {
   return 0;
 }
 ```
-
+--------------
 ## '`-l`' Output For the Simple Sample Class:
+* _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
+  * _refer to the 8 caveats &_ `declass_SampleExec.c` _otherwise!_
 ```
 --=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 5 ]=--
 
