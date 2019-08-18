@@ -80,7 +80,10 @@ OBJ_INFO objects[MAX_OBJECTS];
 int total_objects = 0;
 
 // basic c type keywords:
-char basic_c_types[13][11] = {"char ","short ","int ","unsigned ","signed ","struct ","long ","float ","double ","bool ","enum ","typedef ","void "};
+#define TOTAL_TYPES 14
+char basic_c_types[TOTAL_TYPES][11] = {
+  "char ","short ","int ","unsigned ","signed ","struct ","union ","long ","float ","double ","bool ","enum ","typedef ","void "
+};
 
 /* MESSAGE FUNCTIONS */
 void confirm_valid_file(char *);
@@ -884,7 +887,7 @@ bool not_local_var_declaration(char *word_start) {
       while(IS_WHITESPACE(*findParenthesis)) --findParenthesis;
       if(*findParenthesis == ')' || !found_close_brace) return true;
     }
-    for(int i = 0; i < 13; ++i) // check for basic type declaration
+    for(int i = 0; i < TOTAL_TYPES; ++i) // check for basic type declaration
       if(is_at_substring(scout, basic_c_types[i]) && !VARCHAR(*(scout - 1))) 
         return false;
     --scout;
@@ -1006,9 +1009,10 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
     else if(*end == '}') in_class_scope--;
     if(in_class_scope < 0) break;
 
-    // skip over struct members - the struct's variables are considered 
+    // skip over struct/union members - the struct's variables are considered 
     // within the struct's scope and thus NOT members of the outer class
-    if(is_at_substring(end, "struct") && is_struct_definition(end)) {
+    // NOTE: UNIONS & STRUCTS HANDLED IDENTICALLY!
+    if((is_at_substring(end, "struct") || is_at_substring(end, "union")) && is_struct_definition(end)) {
       while(*end != '\0' && *(end - 1) != '{') *struct_buff_idx++ = *end++, class_size++;
       int in_struct_scope = 1;
       while(*end != '\0' && in_struct_scope > 0) {
