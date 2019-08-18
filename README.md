@@ -20,20 +20,20 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 /*****************************************************************************
  *                      -:- DECLASS.C 8 CAVEATS -:-                         *
  *   (1) 'DECLASS_' PREFIX & 'this' POINTER ARE RESERVED                    *
- *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEITHER IN STRUCTS)    *
+ *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
- *   (4) NO POINTER TO ARRAY OF OBJECTS:                                    *
- *       * IE NOT:      className (*ptrToArrObj)[10];                       *
- *       * ALTERNATIVE: pointer to an object w/ an array of objects member  *
+ *   (4) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
+ *       * IE NOT:      'myClassName c, e;'                                 *
+ *       * ALTERNATIVE: 'myClassName c; <press enter> myClassName e;'       *
  *   (5) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
  *       * IE NOT:      'someObj.method1(someObj.method2());'               *
  *       * ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'    *
  *   (6) CLASS ARRAYS RECIEVED AS ARGS MUST BE DENOTED WITH '[]' NOT '*':   *
  *       * IE NOT:     'func(className *classArr){...}'                     *
  *       * ALTERNATIVE:'func(className classArr[]){...}'                    *
- *   (7) DECLARE CLASS MEMBERS, METHODS & OBJECTS INDIVIDUALLY:             *
- *       * IE NOT:      'myClassName c, e;'                                 *
- *       * ALTERNATIVE: 'myClassName c; myClassName e;'                     *
+ *   (7) NO POINTER TO ARRAY OF OBJECTS:                                    *
+ *       * IE NOT:      className (*ptrToArrObj)[10];                       *
+ *       * ALTERNATIVE: pointer to an object w/ an array of objects member  *
  *   (8) CONTAINMENT, NOT INHERITANCE: CLASSES CAN ONLY ACCESS MEMBERS &    *
  *       METHODS OF THEIR OWN IMMEDIATE MEMBER CLASS OBJECTS:               *
  *       * IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.      *
