@@ -556,8 +556,8 @@ int is_method_invocation(char *p) {
   int invoker_size = 0, array_arg_size = 1;
   // has (or is in) an array subscript
   char *open_bracket = p, *close_bracket = p; 
-  while(*open_bracket != '\0' && no_overlap(*open_bracket, "[;\n\t")) --open_bracket;
-  while(*close_bracket != '\0' && no_overlap(*close_bracket, "];\n\t")) ++close_bracket, ++array_arg_size;
+  while(*open_bracket != '\0' && no_overlap(*open_bracket, "[;\n")) --open_bracket;
+  while(*close_bracket != '\0' && no_overlap(*close_bracket, "];\n")) ++close_bracket, ++array_arg_size;
   if(*open_bracket != '[' || *close_bracket != ']') array_arg_size = 0;
 
   // period member invocation
@@ -602,8 +602,17 @@ void get_object_name(char *outerMost_objectName, char *objectChain, char *buffer
   // find the chain's start, going past array subscripts, invocation notations, & object names.
   // assumes array subscripts are correct & user follows caveat (8) (will splice 'this->' as needed in subscript though)
   char *chain_head = buffer - 1, *chain_tail = buffer - 1;
-  while(no_overlap(*chain_head, "\n\t;{}") && (VARCHAR(*chain_head) || !no_overlap(*chain_head, "[] .>"))) {
-    if(*chain_head == ']') while(*chain_head != '[') --chain_head;   // don't parse subscripts yet - skip over
+  int in_a_subscript = 0;
+  while(no_overlap(*chain_head, "\n;{}") && (VARCHAR(*chain_head) || !no_overlap(*chain_head, "[] .>"))) {
+    if(*chain_head == ']') {                                         // don't parse subscripts yet - skip over
+      ++in_a_subscript;
+      --chain_head;                                                  // move past current subscript brace
+      while(in_a_subscript > 0) {
+        if(*chain_head == ']')       ++in_a_subscript;
+        else if(*chain_head == '[')  --in_a_subscript;
+        --chain_head;  
+      } 
+    }
     if(*chain_head == '>' && *(chain_head - 1) == '-') --chain_head; // move past arrow notation
     --chain_head;
   }
@@ -760,7 +769,7 @@ int get_initialized_member_value(char *member_end) {
   char *start_of_val;
   int i = 0, distance_back = 0;
   --member_end, ++distance_back;
-  while(*member_end != '\0' && no_overlap(*member_end, "=;\n\t")) --member_end, ++distance_back; // find '='
+  while(*member_end != '\0' && no_overlap(*member_end, "=;\n")) --member_end, ++distance_back; // find '='
   if(*member_end == '=') {                                                                       // is initialized value
     start_of_val = member_end + 1;
     while(IS_WHITESPACE(*start_of_val)) start_of_val++;                                          // find start of value
