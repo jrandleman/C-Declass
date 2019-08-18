@@ -381,19 +381,14 @@ void mk_initialization_brace(char brace[], int class_index) {
   char *p = brace;
   *p++ = '{';
   for(int j = 0; j < classes[class_index].total_members; ++j) {
-    if(classes[class_index].member_values[j][0] == 0) {                          // empty value
-      if(classes[class_index].member_names[j][0] == 0) {                         // if struct (struct inner members' name = value = 0)
-        for(int i = j + 1; i < classes[class_index].total_members; ++i)          // determine if struct initialized w/ values or not 
-          if(classes[class_index].member_names[i - 1][0] == 0 
-            && classes[class_index].member_names[i][0] != 0                      // found struct name
-            && classes[class_index].member_values[i][0] == 0) sprintf(p, "0, "); // if struct not initialized with values, set to 0
-      // empty val & not struct member w/ already empty vals
-      } else if(classes[class_index].member_is_array[j] 
+    if(classes[class_index].member_values[j][0] == 0) {               // empty value
+      if(classes[class_index].member_names[j][0] == 0) continue;      // if struct's member (struct inner members' name = value = 0), skip
+      else if(classes[class_index].member_is_array[j] || (j > 0 && classes[class_index].member_names[j-1][0] == 0)
         || (classes[class_index].member_object_class_name[j][0] != 0 && !classes[class_index].member_is_pointer[j]))
-          sprintf(p, "{0}, ");                                                   // wrap empty (non-pointer) array/object value in braces
-        else if((j > 0 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
-          sprintf(p, "0, "); 
-    } else sprintf(p, "%s, ", classes[class_index].member_values[j]);            // non-empty value
+          sprintf(p, "{0}, ");                                        // wrap empty (non-ptr) array/object/struct value in braces
+      else if((j > 0 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
+        sprintf(p, "0, "); 
+    } else sprintf(p, "%s, ", classes[class_index].member_values[j]); // non-empty value
     p += strlen(p);
   }
   *p++ = '}';
