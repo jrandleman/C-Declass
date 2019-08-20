@@ -1,6 +1,6 @@
 # C-Declassify
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
-#### **_Member Default Values, Methods, Object Arrays/Pointers/Containment, and more!_**
+#### **_Member Default Values/Allocation, Methods, Object Arrays/Pointers/Containment, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -14,7 +14,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 --------------
-## C-Declassify's 8 Caveats, Straight From declass.c:
+## C-Declassify's 8 Caveats & 2 Notes, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
 ```c
 /*****************************************************************************
@@ -42,11 +42,19 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *       * ALTERNATIVES: (1) simply include a c1 object as a member in c3   *
  *                       (2) create methods in c2 invoking c1 methods as    *
  *                           an interface for c3                            *
+ *****************************************************************************
+ *                -:- DECLASS.C MEMORY ALLOCATION NOTES -:-                 *
+ *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
+ *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
+ *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
+ *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
+ *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
+ *       * W/O MEM-ALLOC8ED DEFAULT VALS, ".deepcpy()" JUST RETURNS THE OBJ *
  *****************************************************************************/
 ```
 --------------
 ## A Simple Sample Class:
-* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn about using object containment, arrays, pointers, and more!_
+* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn about using object containment, arrays, pointers, default memory allocation, autonomous freeing, the universal_ '`.deepcpy()`' _method, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
