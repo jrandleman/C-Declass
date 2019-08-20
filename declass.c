@@ -32,8 +32,6 @@
 #define MAX_METHOD_BYTES_PER_CLASS 5001
 #define MAX_WORDS_PER_METHOD 1000
 #define MAX_INIT_VALUE_LENGTH 251
-// declassed program contact header
-#define DECLASS_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
 
 /*****************************************************************************
  *                      -:- DECLASS.C 8 CAVEATS -:-                         *
@@ -60,14 +58,24 @@
  *       * ALTERNATIVES: (1) simply include a c1 object as a member in c3   *
  *                       (2) create methods in c2 invoking c1 methods as    *
  *                           an interface for c3                            *
+ *****************************************************************************
+ *                -:- DECLASS.C MEMORY ALLOCATION NOTES -:-                 *
+ *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
+ *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
+ *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
+ *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
+ *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
+ *       * W/O MEM-ALLOC8ED DEFAULT VALS, ".deepcpy()" JUST RETURNS THE OBJ *
  *****************************************************************************/
 
 // stores class names, & their associated methods
-typedef struct class_info{ 
+typedef struct class_info { 
   char class_name[75], method_names[MAX_METHODS_PER_CLASS][75]; 
   char member_names[MAX_MEMBERS_PER_CLASS][75], member_values[MAX_MEMBERS_PER_CLASS][MAX_INIT_VALUE_LENGTH];
+  bool class_has_alloc;                                     // malloc/calloc -- ID's if class contains some allocated member
   bool member_is_array[MAX_MEMBERS_PER_CLASS];              // init empty arrays as {0}
   bool member_is_pointer[MAX_MEMBERS_PER_CLASS];            // init pointers as 0 (same as NULL)
+  bool member_value_is_alloc[MAX_MEMBERS_PER_CLASS];        // track alloc'd members to be freed
   char member_object_class_name[MAX_MEMBERS_PER_CLASS][75]; // used to intialize contained class objects
   int total_methods, total_members; 
 } CLASS_INFO;
@@ -75,7 +83,10 @@ CLASS_INFO classes[MAX_CLASSES];
 int total_classes = 0;
 
 // stores object names, & their associated class
-typedef struct objNames { char class_name[75], object_name[75]; bool is_class_pointer, is_class_array; } OBJ_INFO;
+typedef struct objNames { 
+  char class_name[75], object_name[75]; 
+  bool is_class_pointer, is_class_array, has_alloc;
+} OBJ_INFO;
 OBJ_INFO objects[MAX_OBJECTS];
 int total_objects = 0;
 
@@ -84,22 +95,31 @@ int total_objects = 0;
 char basic_c_types[TOTAL_TYPES][11] = {
   "char ","short ","int ","unsigned ","signed ","struct ","union ","long ","float ","double ","bool ","enum ","typedef ","void "
 };
+// brace-additions
+#define TOTAL_BRACE_KEYWORDS 5
+char brace_keywords[TOTAL_BRACE_KEYWORDS][8] = {"else if", "if", "else", "for", "while"};
 
+/* BRACE FUNCTIONS & GARBAGE-COLLECTION/DEEPCPY-FCN FLAGS */
+bool AUTO_FREE, DEEP_COPY;
+void add_braces(char []);
 /* MESSAGE FUNCTIONS */
 void confirm_valid_file(char *);
 void declass_missing_Cfile_alert();
 void declass_DECLASSIFIED_ascii_art();
 void show_l_flag_data();
 /* COMMENT & BLANK LINE SKIPPING FUNCTIONS */
-void skip_comment(char [], int *, char [], int *);
-void whitespace_all_class_comments(char *);
+void whitespace_all_comments(char *);
+void trim_sequential_spaces(char []);
 int remove_blank_lines(char *);
 /* STRING HELPER FUNCTIONS */
 bool no_overlap(char, char *);
 bool is_at_substring(char *, char *);
-/* OBJECT INITIALIZATION FUNCTIONS */
+/* OBJECT CONSTRUCTION FUNCTIONS */
 void mk_initialization_brace(char [], int);
 void mk_ctor_macros(char [], char *);
+void mk_class_global_initializer(char *, char *, char *);
+/* CLASS OBJECT DEEP-COPYING FCN CREATION FUNCTION */
+void mk_deep_copy_class_fcns(char []);
 /* OBJECT METHOD PARSER */
 int parse_method_invocation(char *, char *, int *, bool, char[][75]);
 void splice_in_prepended_method_name(char *, char *, int, char *, int *, int *, char[][75]);
@@ -119,6 +139,7 @@ void get_class_name(char *, char *);
 void get_prepended_method_name(char *, char *, char *);
 int get_initialized_member_value(char *);
 void register_member_class_objects(char *);
+void check_for_alloc_sizeof_arg();
 int get_class_member(char *, bool);
 void add_method_word(char [][75], int *, char *, char *);
 /* CONFIRM WHETHER METHOD'S WORD IS A LOCAL CLASS MEMBER */
@@ -130,6 +151,50 @@ int parse_local_nested_method(char *, char *, char *, char [][75]);
 bool valid_member(char *, char *, char, char, char [][75], int);
 /* PARSE CLASS */
 int parse_class(char *, char [], int *);
+
+// declassed program contact header
+#define DECLASS_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
+/* garbage collector to free all memory allocated by ctor's (where "malloc"/"calloc" is a class member default value) */
+#define DECLASS_GARBAGE_COLLECTOR "\
+/************************** GARBAGE COLLECTOR START **************************/\n\
+#include <stdio.h>\n\
+#include <stdlib.h>\n\
+#include <string.h>\n\
+struct DECLASS__dump_set {\n\
+  long len, max; // current # of ptrs && max capacity\n\
+  void **ptrs;   // unique ptr set to free all ctor alloc's\n\
+} DECLASS__dump = {-1};\n\
+void DECLASS__add_to_dump(void *ptr) { \n\
+  // malloc garbage collector\n\
+  if(DECLASS__dump.len == -1) {\n\
+    DECLASS__dump.ptrs = malloc(sizeof(void *) * 10);\n\
+    if(!DECLASS__dump.ptrs) {\n\
+      fprintf(stderr, \"-:- ERROR: COULDN'T MALLOC MEMORY FOR DECLASS.C'S CLASS GARBAGE-COLLECTOR -:-\\n\");\n\
+      exit(EXIT_FAILURE);\n\
+    }\n\
+    DECLASS__dump.max = 10, DECLASS__dump.len = 0;\n\
+  }\n\
+  // reallocate if \"max\" ptrs already added\n\
+  if(DECLASS__dump.len == DECLASS__dump.max) { \n\
+    DECLASS__dump.max *= DECLASS__dump.max;\n\
+    void **temp = realloc(DECLASS__dump.ptrs, sizeof(void *) * DECLASS__dump.max);\n\
+    if(!temp) {\n\
+      fprintf(stderr, \"-:- ERROR: COULDN'T REALLOC FOR DECLASS.C'S CLASS GARBAGE-COLLECTOR -:-\\n\");\n\
+      fprintf(stderr, \"-:-    FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM    -:-\\n\");\n\
+      exit(EXIT_FAILURE); // still frees any ptrs allocated thus far\n\
+    }\n\
+    DECLASS__dump.ptrs = temp;\n\
+  }\n\
+  // add ptr to to dump if not already present (ensures no double-freeing)\n\
+  for(int i = 0; i < DECLASS__dump.len; ++i) if(DECLASS__dump.ptrs[i] == ptr) return;\n\
+  DECLASS__dump.ptrs[DECLASS__dump.len++] = ptr;\n\
+}\n\
+void DECLASS__empty_dump() { // invoked by atexit to free all ctor-alloc'd memory\n\
+  for(int i = 0; i < DECLASS__dump.len; ++i) free(DECLASS__dump.ptrs[i]);\n\
+  if(DECLASS__dump.len > 0) free(DECLASS__dump.ptrs);\n\
+  DECLASS__dump.len = 0;\n\
+}\n\
+/*************************** GARBAGE COLLECTOR END ***************************/"
 
 /******************************************************************************
 * MAIN EXECUTION
@@ -154,17 +219,17 @@ int main(int argc, char *argv[]) {
   strcpy(filename, argv[argc-1]);
   confirm_valid_file(filename);
 
-  sprintf(NEW_FILE,"/* DECLASSIFIED: %s\n * %s\n\n", filename, DECLASS_SUPPORT_CONTACT);
   FSCRAPE(file_contents, filename);
   char filler_array_argument[MAX_WORDS_PER_METHOD][75];
-  int i = 0, j = strlen(NEW_FILE);
+  int i = 0, j = 0;
   bool in_a_string = false;
+
+  // wrap braces around single-line "braceless" if, else if, else, while, & for loops
+  add_braces(file_contents);
+
   while(file_contents[i] != '\0') {
     // don't modify anything in strings
-    if(file_contents[i] == '"') in_a_string = !in_a_string;
-
-    // skip over comments w/o modifying
-    if(!in_a_string) skip_comment(file_contents, &i, NEW_FILE, &j);
+    if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
 
     // store class info & convert to structs calling external fcns
     if(!in_a_string && is_at_substring(&file_contents[i], "class ")) 
@@ -172,13 +237,19 @@ int main(int argc, char *argv[]) {
 
     // store declared class object info
     for(int k = 0; !in_a_string && k < total_classes; ++k)
-      if(is_at_substring(&file_contents[i], classes[k].class_name))
+      if(is_at_substring(&file_contents[i], classes[k].class_name) 
+        && !VARCHAR(file_contents[i+strlen(classes[k].class_name)]) && !VARCHAR(file_contents[i-1]))
         if(store_object_info(&file_contents[i])) { // assign default values
+          objects[total_objects-1].has_alloc = classes[k].class_has_alloc;
 
           // check if class is already initialized by user
           int already_assigned = i;
           while(file_contents[already_assigned] != '\0' && no_overlap(file_contents[already_assigned], "\n;,=")) ++already_assigned;
-          if(file_contents[already_assigned] == '=') break; 
+          if(file_contents[already_assigned] == '=') {
+            while(file_contents[already_assigned] != '\0' && no_overlap(file_contents[already_assigned], "\n;(")) // find if value from fcn
+              ++already_assigned;
+            break; 
+          }
 
           // initialization undefined -- use default initial values
           while(file_contents[i] != '\0' && file_contents[i-1] != ';') NEW_FILE[j++] = file_contents[i++];
@@ -193,24 +264,122 @@ int main(int argc, char *argv[]) {
 
     // modify object invoking method to fcn call w/ a prepended class-converted-struct name
     if(!in_a_string && total_classes > 0) i += parse_method_invocation(&file_contents[i], NEW_FILE, &j, false, filler_array_argument);
+
     // save non-class data to file
     NEW_FILE[j++] = file_contents[i++]; 
   }
   NEW_FILE[j] = '\0';
 
+  // notify user declassification conversion completed
   declass_DECLASSIFIED_ascii_art();
   printf("%s ==DECLASSIFIED=> ", filename);
   NEW_EXTENSION(filename, "_DECLASS.c");
   printf("%s", filename);
   printf("\n=================================================================================\n");
+  trim_sequential_spaces(NEW_FILE);
+  
+  char HEADED_NEW_FILE[MAX_FILESIZE]; FLOOD_ZEROS(HEADED_NEW_FILE, MAX_FILESIZE);
+  bool has_alloc = false;
 
-  FPUT(NEW_FILE,filename);
+  // determine if ought to include detructor at top of file as per whether 
+  // "#define DECLASS_NFREE" wasn't found & there were some classes w/
+  // default allocated memory values
+  for(int i = 0; AUTO_FREE && i < total_classes; ++i) if(classes[i].class_has_alloc) {has_alloc = true; break;}
+  if(!has_alloc || !AUTO_FREE) sprintf(HEADED_NEW_FILE,"/* DECLASSIFIED: %s\n * %s\n\n%s", filename, DECLASS_SUPPORT_CONTACT, NEW_FILE);
+  else sprintf(HEADED_NEW_FILE,"/* DECLASSIFIED: %s\n * %s\n%s\n\n%s", filename, DECLASS_SUPPORT_CONTACT, DECLASS_GARBAGE_COLLECTOR, NEW_FILE);
+  
+  // write newly converted/declassified file & notify success to user
+  FPUT(HEADED_NEW_FILE,filename);
   if(show_class_info) show_l_flag_data();
-
   printf(" >> Terminating Declassifier.\n");
   printf("=============================\n\n");
 
   return 0;
+}
+
+/******************************************************************************
+* BRACE FUNCTIONS
+******************************************************************************/
+
+// add braces around any "braceless" single-line conditionals & while/for loops
+// ALSO ASSIGNS GLOBAL "AUTO_FREE"/"DEEP_COPY" flags for on/off garbage collection &/or deep copying
+void add_braces(char file_contents[]) {
+  char BRACED_FILE[MAX_FILESIZE], *blanker;
+  int k, i = 0, j = 0, in_brace_args = 0;
+  FLOOD_ZEROS(BRACED_FILE, MAX_FILESIZE);
+  BRACED_FILE[j++] = file_contents[i++]; // so "file_contents[i-1]" wont throw error
+  bool in_a_string = false;
+  AUTO_FREE = true, DEEP_COPY = true;
+
+  // remove commments from program, & the initial '/' if "file_contents" starts with a comment:
+  blanker = file_contents;
+  if(file_contents[0] == '/' && (file_contents[1] == '/' || file_contents[1] == '*')) BRACED_FILE[0] = ' ';
+  whitespace_all_comments(blanker); // ensures braces & DECLASS_NFREE/DECLASS_NDEEP flags applied correctly
+
+  while(file_contents[i] != '\0') {
+    if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+    // check whether user disable garbage collector: "#define DECLASS_NFREE"
+    // or disable deep copy function: "#define DECLASS_NDEEP"
+    if(!in_a_string && file_contents[i] == '\n' && (AUTO_FREE || DEEP_COPY)) {
+      int l = i;
+      while(IS_WHITESPACE(file_contents[l])) ++l;
+      if(file_contents[l] == '#') {
+        ++l;
+        while(IS_WHITESPACE(file_contents[l])) ++l;
+        if(is_at_substring(&file_contents[l], "define")) {
+          l += strlen("define");
+          while(IS_WHITESPACE(file_contents[l])) ++l;
+          if(is_at_substring(&file_contents[l], "DECLASS_NFREE") && !VARCHAR(file_contents[l+strlen("DECLASS_NFREE")])) { 
+            AUTO_FREE = false, i = l + strlen("DECLASS_NFREE");
+            sprintf(&BRACED_FILE[j], "\n#define DECLASS_NFREE"); 
+            j = strlen(BRACED_FILE); continue;
+          } else if(is_at_substring(&file_contents[l], "DECLASS_NDEEP") && !VARCHAR(file_contents[l+strlen("DECLASS_NDEEP")])) { 
+            DEEP_COPY = false, i = l + strlen("DECLASS_NDEEP");
+            sprintf(&BRACED_FILE[j], "\n#define DECLASS_NDEEP"); 
+            j = strlen(BRACED_FILE); continue;
+          }
+        }
+      }
+    }
+
+    // check for else if, if, else, while, & for
+    for(k = 0; !in_a_string && k < TOTAL_BRACE_KEYWORDS; ++k)
+      if(is_at_substring(&file_contents[i],brace_keywords[k]) && !VARCHAR(file_contents[i-1]) 
+        && !VARCHAR(file_contents[i+strlen(brace_keywords[k])])) {                    // at a "brace keyword"
+        for(int l = 0, len = strlen(brace_keywords[k]); l < len; ++l)                 // skip brace keyword
+          BRACED_FILE[j++] = file_contents[i++]; 
+        while(IS_WHITESPACE(file_contents[i])) BRACED_FILE[j++] = file_contents[i++]; // skip optional space between keyword & '('
+        if(file_contents[i] == '(' || strcmp(brace_keywords[k], "else") == 0) {       // actual brace keyword
+          if(file_contents[i] == '(') {                                               // not else
+            BRACED_FILE[j++] = file_contents[i++];                                    // move past '('
+            in_brace_args = 1;
+            while(file_contents[i] != '\0' && in_brace_args > 0) {                    // copy brace keywords args
+              if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+              if(file_contents[i] == '(')      ++in_brace_args;
+              else if(file_contents[i] == ')') --in_brace_args;
+              BRACED_FILE[j++] = file_contents[i++]; 
+            }
+          }
+          while(file_contents[i] != '\0' && IS_WHITESPACE(file_contents[i])) { // skip to first statement after brace keyword
+            if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+            BRACED_FILE[j++] = file_contents[i++]; 
+          }
+          if(file_contents[i] == ';' || file_contents[i] == '{'                // braced keyword or do-while loop
+          ||(file_contents[i]=='d'&&file_contents[i+1]=='o'&&!VARCHAR(file_contents[i+2]))) break;
+          BRACED_FILE[j++] = '{';                                              // add brace
+          while(file_contents[i] != '\0' && file_contents[i-1] != ';') {       // copy single-line conditional
+            if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+            BRACED_FILE[j++] = file_contents[i++]; 
+          }
+          BRACED_FILE[j++] = '}';                                              // add brace
+        }
+        break;                                                                 // found brace keyword, => don't check others
+      }
+    BRACED_FILE[j++] = file_contents[i++];
+  }
+  BRACED_FILE[j] = '\0';
+  FLOOD_ZEROS(file_contents, MAX_FILESIZE);
+  strcpy(file_contents, BRACED_FILE); // use "braced" file variant as official file
 }
 
 /******************************************************************************
@@ -221,15 +390,15 @@ int main(int argc, char *argv[]) {
 void confirm_valid_file(char *filename) {
   struct stat buf;
   if(stat(filename, &buf)) {
-    printf("-:- FILE %s DOES NOT EXIST! -:-\n", filename);
-    exit(0);
+    fprintf(stderr, "-:- FILE %s DOES NOT EXIST! -:-\n", filename);
+    exit(EXIT_FAILURE);
   }
   if(buf.st_size > MAX_FILESIZE || buf.st_size == 0) {
     if(buf.st_size > MAX_FILESIZE) {
-      printf("-:- FILE %s SIZE %lld BYTES EXCEEDS %d BYTE CAP! -:- \n", filename, buf.st_size, MAX_FILESIZE); 
-      printf("-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n");
-    } else printf("-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n"); 
-    exit(0);
+      fprintf(stderr, "-:- FILE %s SIZE %lld BYTES EXCEEDS %d BYTE CAP! -:- \n", filename, buf.st_size, MAX_FILESIZE); 
+      fprintf(stderr, "-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n");
+    } else fprintf(stderr, "-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n"); 
+    exit(EXIT_FAILURE);
   }
 }
 
@@ -280,9 +449,11 @@ void show_l_flag_data() {
       for(int j = 0; j < classes[i].total_members; ++j) {
         if(classes[i].member_names[j][0] == 0) continue;
         char bar = (classes[i].total_methods > 0) ? '|' : ' ';
-        if(classes[i].member_is_pointer[j])    printf(" %c  L_ *%s\n", bar, classes[i].member_names[j]);
-        else if(classes[i].member_is_array[j]) printf(" %c  L_ %s[]\n", bar, classes[i].member_names[j]);
-        else printf(" %c  L_ %s\n", bar, classes[i].member_names[j]);
+        if(classes[i].member_is_pointer[j])    printf(" %c  L_ *%s", bar, classes[i].member_names[j]);
+        else if(classes[i].member_is_array[j]) printf(" %c  L_ %s[]", bar, classes[i].member_names[j]);
+        else printf(" %c  L_ %s", bar, classes[i].member_names[j]);
+        if(classes[i].member_value_is_alloc[j]) printf(" (( ALLOCATED MEMORY ))");
+        printf("\n");
       }
     }
 
@@ -309,29 +480,15 @@ void show_l_flag_data() {
 * COMMENT & BLANK LINE SKIPPING FUNCTIONS
 ******************************************************************************/
 
-// skips comments outside of class instances
-void skip_comment(char file_contents[], int *i, char NEW_FILE[], int *j) {
-  #define copy_file_contents(times) \
-    ({for(int k=0; k<times; ++k){NEW_FILE[*j] = file_contents[*i]; file_contents[*i] = ' '; *i += 1; *j += 1;}})
-  if(file_contents[*i] == '/' && file_contents[(*i) + 1] == '/')
-    while(file_contents[(*i)+1] != '\0' && file_contents[(*i)+1] != '\n') copy_file_contents(1);
-  else if(file_contents[*i] == '/' && file_contents[(*i) + 1] == '*') {
-    copy_file_contents(2);
-    while(file_contents[*i] != '\0' && (file_contents[*i] != '*' || file_contents[(*i) + 1] != '/'))
-      copy_file_contents(1);
-  }
-  #undef copy_file_contents
-}
-
 // replaces all comments inside of a class instance with spaces
-void whitespace_all_class_comments(char *end) {
+void whitespace_all_comments(char *end) { // end = 1 past 1st '{'
   int in_class_scope = 1;
   bool in_a_string = false;
   while(*end != '\0' && in_class_scope > 0) {
     // confirm in class' scope
     if(*end == '{') in_class_scope++;
     else if(*end == '}') in_class_scope--;
-    else if(*end == '"') in_a_string = !in_a_string;
+    else if(*end == '"' && *(end-1) != '\\') in_a_string = !in_a_string;
     if(in_class_scope < 0) break;
     if(!in_a_string && *end == '/' && *(end + 1) == '/') {
       while(*end != '\0' && *end != '\n') *end++ = ' ';
@@ -342,6 +499,27 @@ void whitespace_all_class_comments(char *end) {
     }
     end++;
   }
+}
+
+// trims any sequences of spaces ended by '\n' to just '\n' in "OLD_BUFFER"
+void trim_sequential_spaces(char OLD_BUFFER[]) {
+  char *buff = OLD_BUFFER, NEW_BUFFER[MAX_FILESIZE], *scout, *write;
+  FLOOD_ZEROS(NEW_BUFFER, MAX_FILESIZE);
+  bool in_a_string = false;
+  write = NEW_BUFFER;
+  *write++ = *buff++;                                 // so first string check doesn't check garbage memory
+  while(*buff != '\0') {
+    if(*buff == '"' && *(buff-1) != '\\') in_a_string = !in_a_string;
+    if(!in_a_string && *buff == ' ') {                // trims space(s) + '\n' sequence
+      scout = buff;
+      while(*scout != '\0' && *scout == ' ') ++scout; // skip over spaces
+      if(*scout == '\n') buff = scout;                // if correct format, passover spaces
+    }
+    *write++ = *buff++;
+  }
+  *write = '\0';
+  FLOOD_ZEROS(OLD_BUFFER, MAX_FILESIZE);
+  strcpy(OLD_BUFFER, NEW_BUFFER);
 }
 
 // gives size to skip of lines composed solely of whitespaces with '\n's at either end
@@ -376,7 +554,7 @@ bool is_at_substring(char *p, char *substr) {
 }
 
 /******************************************************************************
-* OBJECT INITIALIZATION FUNCTIONS
+* OBJECT CONSTRUCTION FUNCTIONS
 ******************************************************************************/
 
 // given a class index, returns an initialization brace for it's member values
@@ -388,10 +566,10 @@ void mk_initialization_brace(char brace[], int class_index) {
       if(classes[class_index].member_names[j][0] == 0) continue;      // if struct's member (struct inner members' name = value = 0), skip
       else if(classes[class_index].member_is_array[j] || (j > 0 && classes[class_index].member_names[j-1][0] == 0)
         || (classes[class_index].member_object_class_name[j][0] != 0 && !classes[class_index].member_is_pointer[j]))
-          sprintf(p, "{0}, ");                                        // wrap empty (non-ptr) array/object/struct value in braces
+          sprintf(p, "{0},");                                        // wrap empty (non-ptr) array/object/struct value in braces
       else if((j > 0 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
-        sprintf(p, "0, "); 
-    } else sprintf(p, "%s, ", classes[class_index].member_values[j]); // non-empty value
+        sprintf(p, "0,"); 
+    } else sprintf(p, "%s,", classes[class_index].member_values[j]); // non-empty value
     p += strlen(p);
   }
   *p++ = '}';
@@ -401,16 +579,18 @@ void mk_initialization_brace(char brace[], int class_index) {
 // fills 'ctor_macros' string w/ macros for both single & array object constructions/initializations
 void mk_ctor_macros(char ctor_macros[], char *class_name) {
   // add macro for a single object construction instance
-  sprintf(ctor_macros, "#define DECLASS__%s_CTOR(DECLASS_THIS) ({DECLASS_THIS = DECLASS__%s_DFLT;", class_name, class_name);
+  sprintf(ctor_macros, "#define DECLASS__%s_CTOR(DECLASS_THIS) ({DECLASS_THIS = DECLASS__%s_DFLT();", class_name, class_name);
   int macro_idx = strlen(ctor_macros);
   // Search for members that are also other class objects
   for(int l = 0; l < classes[total_classes].total_members; ++l) {
     if(classes[total_classes].member_object_class_name[l][0] != 0) { // member = class object
       // append macros to initialize any members that are class objects
       if(classes[total_classes].member_is_array[l] && !classes[total_classes].member_is_pointer[l]) { // append array construction
-        sprintf(&ctor_macros[macro_idx], "\\\n\tDECLASS__%s_ARR(DECLASS_THIS.%s);", classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
+        sprintf(&ctor_macros[macro_idx], "\\\n\tDECLASS__%s_ARR(DECLASS_THIS.%s);", 
+          classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
       } else if(!classes[total_classes].member_is_pointer[l]) {                                       // append single object construction
-        sprintf(&ctor_macros[macro_idx], "\\\n\tDECLASS__%s_CTOR(DECLASS_THIS.%s);", classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
+        sprintf(&ctor_macros[macro_idx], "\\\n\tDECLASS__%s_CTOR(DECLASS_THIS.%s);", 
+          classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
       }
       macro_idx = strlen(ctor_macros);
     }
@@ -424,6 +604,130 @@ void mk_ctor_macros(char ctor_macros[], char *class_name) {
     DECLASS__%s_CTOR(DECLASS_ARR[DECLASS__%s_IDX]);\\\n})", class_name, class_name, class_name, class_name, class_name, class_name);
 }
 
+// make global initializing function to assign default values and push default
+// allocated members to garbage collector
+void mk_class_global_initializer(char *class_global_initializer, char *class_name, char *initial_values_brace) {
+  char *p = class_global_initializer, confirm_valid_alloc[1000], add_alloc_to_dump[1000];
+  FLOOD_ZEROS(confirm_valid_alloc, 1000); FLOOD_ZEROS(add_alloc_to_dump, 1000);
+  char *q = confirm_valid_alloc, *r = add_alloc_to_dump;
+  bool first_alloc = true;
+  // apply initialization brace
+  sprintf(p, "\n%s DECLASS__%s_DFLT(){\n\t%s this=%s;", class_name, class_name, class_name, initial_values_brace);
+  p += strlen(p);
+  // push alloc'd default members to garbage collector
+  for(int i = 0; classes[total_classes].class_has_alloc && i < classes[total_classes].total_members; ++i)
+    if(classes[total_classes].member_value_is_alloc[i]) {
+      if(first_alloc) {
+        sprintf(q, "\n\tif(this.%s==NULL", classes[total_classes].member_names[i]);
+        first_alloc = false;
+      } else {
+        sprintf(q, "||this.%s==NULL", classes[total_classes].member_names[i]);
+      }
+      sprintf(r, "\n\tif(this.%s!=NULL)DECLASS__add_to_dump(this.%s);", 
+        classes[total_classes].member_names[i], classes[total_classes].member_names[i]);
+      q += strlen(q), r += strlen(r);
+    }
+    
+  if(!first_alloc) { // class has allocated members
+    // finish formatting valid allocation confirmation
+    sprintf(q, "){\n\t\tfprintf(stderr, \"-:- ERROR ALLOCATING MEMBER OF CLASS NAME \\\"%s\\\" -:-\\n", class_name);
+    q += strlen(q);
+    if(AUTO_FREE) sprintf(q, "-:- FREEING ALLOCATED MEMERS THUS FAR AND TERMINATING PROGRAM -:-\\n\");\n\t\texit(EXIT_FAILURE);\n\t}");
+    else          sprintf(q, "\");\n\t\texit(EXIT_FAILURE);\n\t}");
+    q += strlen(q);
+    // add alloc confirmation & garbage-collector "atexit" initiation to "class_global_initializer"
+    if(AUTO_FREE) sprintf(p, "%s\n\tatexit(DECLASS__empty_dump);%s", add_alloc_to_dump, confirm_valid_alloc);
+    else          sprintf(p, "%s", confirm_valid_alloc);
+    p += strlen(p);
+  }
+  // make sure to return new object
+  sprintf(p, "\n\treturn this;\n}");
+}
+
+/******************************************************************************
+* CLASS OBJECT DEEP-COPYING FCN CREATION FUNCTION
+******************************************************************************/
+
+// returns a single (function) & array (macro) set of deep-copying operations for allocated default values of 
+// the current class -- only the single-object ".deepcpy()" is available to users -- the array macro is used internally
+void mk_deep_copy_class_fcns(char deep_cpy_fcns[]) {
+  // SINGLE OBJECT DEEP COPY IS A FUNCTION ASSIGNMENT TAKING OBJECT-TO-COPY AS ARG !!!
+  char *p = deep_cpy_fcns, *class_name = classes[total_classes].class_name;
+  char confirm_valid_alloc[1500], memmove_members[1500], alloc_err_print[500];
+  FLOOD_ZEROS(confirm_valid_alloc, 1500); FLOOD_ZEROS(memmove_members, 1500); FLOOD_ZEROS(alloc_err_print, 500);
+  char *q = confirm_valid_alloc, *r = memmove_members, *alloc_err_ptr = alloc_err_print;
+  bool first_alloc = true;
+
+  // sprintf error comment ("freeing allocated members" message only shown if AUTO_FREE garbage-collector enabled)
+  sprintf(alloc_err_ptr, "{\n\t\tfprintf(stderr, \"\\n-:- UNABLE TO MALLOC IN DEEP COPY FOR CLASS \\\"%s\\\" -:-\\n", 
+    classes[total_classes].class_name);
+  alloc_err_ptr += strlen(alloc_err_ptr);
+  if(AUTO_FREE) {
+    sprintf(alloc_err_ptr, "-:- FREEING ALLOCATED MEMERS THUS FAR AND TERMINATING PROGRAM -:-\\n");
+    alloc_err_ptr += strlen(alloc_err_ptr);
+  }
+  sprintf(alloc_err_ptr, "\");\n\t\texit(EXIT_FAILURE);\n\t}");
+  alloc_err_ptr += strlen(alloc_err_ptr);
+
+  // go through members to deep copy
+  sprintf(p, "%s DECLASS_deepcpy_%s(%s *DECLASS__OLD_%s) {\n\t%s this = *DECLASS__OLD_%s;unsigned long DECLASS__MEM_SIZE_%s=0;", 
+    class_name, class_name, class_name, class_name, class_name, class_name, class_name);
+  p += strlen(p);
+  for(int i = 0; i < classes[total_classes].total_members; ++i) {
+    if(classes[total_classes].member_names[i][0] == 0) continue; // struct or union nested member -- disregard
+
+    // deep copy alloc'd member
+    if(classes[total_classes].member_value_is_alloc[i]) { // if(this.%s!=NULL)DECLASS__add_to_dump(this.%s);
+      sprintf(p, "\n\tthis.%s=NULL;this.%s=%s;", 
+        classes[total_classes].member_names[i], classes[total_classes].member_names[i], classes[total_classes].member_values[i]);
+      p += strlen(p);
+      if(AUTO_FREE) { // is AUTO_FREE (garbage collector) enabled, add deep copied member to garbage collector
+        sprintf(p, "if(this.%s!=NULL)DECLASS__add_to_dump(this.%s);", 
+          classes[total_classes].member_names[i], classes[total_classes].member_names[i]);
+        p += strlen(p);
+      }
+      sprintf(r, "\n\tDECLASS__MEM_SIZE_%s=sizeof(DECLASS__OLD_%s->%s);memmove(this.%s, DECLASS__OLD_%s->%s, DECLASS__MEM_SIZE_%s);", 
+        class_name, class_name, classes[total_classes].member_names[i], classes[total_classes].member_names[i], class_name, 
+        classes[total_classes].member_names[i], class_name);
+      r += strlen(r);
+      if(first_alloc) {sprintf(q, "\n\tif(this.%s==NULL", classes[total_classes].member_names[i]); first_alloc = false;}
+      else            sprintf(q, "||this.%s==NULL", classes[total_classes].member_names[i]);
+      q += strlen(q);
+
+    // member is a class object, check whether contains a alloc
+    } else if(classes[total_classes].member_object_class_name[i][0] != 0) { 
+      bool member_obj_has_alloc = false;
+      for(int j = 0; j < total_classes; ++j)          // search if member object's class has a alloc member
+        if(strcmp(classes[j].class_name, classes[total_classes].member_object_class_name[i]) == 0) 
+          member_obj_has_alloc = classes[j].class_has_alloc;
+      // deep copy class member
+      if(member_obj_has_alloc) { 
+        if(classes[total_classes].member_is_array[i]) // deep copy member class object array
+          sprintf(p, "\n\t DECLASS__deepcpyARR_%s(this.%s, DECLASS__OLD_%s->%s);", 
+            classes[total_classes].member_object_class_name[i], classes[total_classes].member_names[i], class_name, 
+            classes[total_classes].member_names[i]);
+        else                                          // deep copy single member class object
+          sprintf(p, "\n\tthis.%s = DECLASS_deepcpy_%s(DECLASS__OLD_%s->%s);", 
+            classes[total_classes].member_names[i], classes[total_classes].member_object_class_name[i], class_name, 
+            classes[total_classes].member_names[i]);
+        p += strlen(p);
+      }
+    }
+  }
+  if(!first_alloc) sprintf(q, ")%s", alloc_err_print);
+  if(!first_alloc) {sprintf(p, "%s%s", confirm_valid_alloc, memmove_members); p += strlen(p);}
+  sprintf(p, "\n\treturn this;\n}\n");
+  p += strlen(p);
+
+  // ARRAY OBJECT DEEP COPY IS A MACRO STATEMENT TAKING NEW-OBJECT-TO-FILL && OBJECT-TO-COPY AS ARGS !!!
+  sprintf(p, "#define DECLASS__deepcpyARR_%s(DECLASS__NEW_%s, DECLASS__OLD_%s) ({\\", class_name, class_name, class_name);
+  p += strlen(p);
+  sprintf(p, "\n\tfor(int DECLASS__%s_i = 0; DECLASS__%s_i < (sizeof(DECLASS__OLD_%s)/sizeof(DECLASS__OLD_%s[0])); ++DECLASS__%s_i)\\\n\t\tDECLASS__NEW_%s[DECLASS__%s_i] = DECLASS_deepcpy_%s(&DECLASS__OLD_%s[DECLASS__%s_i]);\\\n})",
+    class_name, class_name, class_name, class_name, class_name, class_name, class_name, class_name, class_name, class_name);
+  p += strlen(p);
+  *p = '\0';
+}
+
 /******************************************************************************
 * OBJECT METHOD PARSER
 ******************************************************************************/
@@ -433,25 +737,27 @@ int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_meth
   char *p = s, first_char = *s, new_fcn_call[75];
   FLOOD_ZEROS(new_fcn_call, 75);
   int method_name_size = 0;
-  if(!(VARCHAR(*p)) && (VARCHAR(*(p + 1)))) {                                      // may be object
+  if(!(VARCHAR(*p)) && (VARCHAR(*(p + 1)))) {                                  // may be object
     p++;
-    for(int i = 0; i < total_objects; ++i) {                                       // check for each object
+    for(int i = 0; i < total_objects; ++i) {                                   // check for each object
       int len = strlen(objects[i].object_name);
-      if(strlen(p) > len && is_at_substring(p, objects[i].object_name)) {          // found object
+      if(strlen(p) > len && is_at_substring(p, objects[i].object_name)) {      // found object
         int invoker_size = is_method_invocation(p + len);
-        if(invoker_size == 0) continue;                                            // no invocation notation (no '.' nor '->')
+        if(invoker_size == 0) continue;                                        // no invocation notation (no '.' nor '->')
         char invoked_member_name[75];
-        get_invoked_member_name(p + len + invoker_size, invoked_member_name);      // get member name
+        get_invoked_member_name(p + len + invoker_size, invoked_member_name);  // get member name
+        bool method_is_DECLASS_deepcpy = (strcmp(invoked_member_name, "deepcpy") == 0);
         if(invoked_member_is_method(invoked_member_name, objects[i].class_name, is_nested_method)) { // member = method
-          while((invoker_size = is_method_invocation(p)) > 0 || VARCHAR(*p)) {     // move p to after object & method names
+          while((invoker_size = is_method_invocation(p)) > 0 || VARCHAR(*p)) { // move p to after object & method names
             if(invoker_size == 0) invoker_size = 1; // VARCHAR
             p += invoker_size, method_name_size += invoker_size;
           }
-          method_name_size++;                                                      // account for 1st char ('%c' in sprintf below)
-          sprintf(new_fcn_call, "%cDECLASS_%s_%s", first_char, objects[i].class_name, invoked_member_name);
+          method_name_size++;                                                  // account for 1st char ('%c' in sprintf below)
+          if(method_is_DECLASS_deepcpy) sprintf(new_fcn_call, "%cDECLASS_deepcpy_%s", first_char, objects[i].class_name);
+          else                          sprintf(new_fcn_call, "%cDECLASS_%s_%s", first_char, objects[i].class_name, invoked_member_name);
 
           // whether method is invoked within another method, but splice in either way
-          if(is_nested_method)
+          if(is_nested_method && !method_is_DECLASS_deepcpy)
             splice_in_prepended_NESTED_method_name(new_fcn_call, p, i, NEW_FILE, &method_name_size, method_words);
           else
             splice_in_prepended_method_name(new_fcn_call, p, i, NEW_FILE, j, &method_name_size, method_words);
@@ -579,7 +885,8 @@ bool invoked_member_is_method(char *invoked_member_name, char *class_name, bool 
   for(int i = 0; i < total_classes + is_nested_method; ++i) 
     if(strcmp(classes[i].class_name, class_name) == 0)
       for(int j = 0; j < classes[i].total_methods; ++j)
-        if(strcmp(classes[i].method_names[j], invoked_member_name) == 0) return true;
+        if(strcmp(classes[i].method_names[j], invoked_member_name) == 0
+          || strcmp("deepcpy", invoked_member_name) == 0) return true;
   return false;
 }
 
@@ -714,11 +1021,22 @@ bool store_object_info(char *s) {
   FLOOD_ZEROS(class_type_name, 75);
   int i = 0, j = 0;
   while(*q != '\0' && *q != ';') if(*q++ == ')') { not_an_arg = false; break; } // determine if arg
-  while(!IS_WHITESPACE(*p)) class_type_name[i++] = *p++; p++;                   // skip class_type declaration
+  // determine whether object is in fact assigned value by a fcn
+  if(!not_an_arg) {
+    q = s;
+    bool is_fcn_assignment = false;
+    while(*q != '\0' && no_overlap(*q, ";,)")) if(*q++ == '(') { is_fcn_assignment = true; break; }
+    if(is_fcn_assignment) {
+      q = s; is_fcn_assignment = false;
+      while(*q != '\0' && no_overlap(*q, ";,()")) if(*q++ == '=') { is_fcn_assignment = true; break; }
+      not_an_arg = is_fcn_assignment;
+    }
+  }
+  while(!IS_WHITESPACE(*p)) class_type_name[i++] = *p++; p++; // skip class_type declaration
   bool is_class_pointer = false, is_class_array = false;
-  if(*p == '*') is_class_pointer = true, p++;                                   // check if object == class pointer
-  while(VARCHAR(*p)) object_name[j++] = *p++;                                   // store object's name, class, & ptr status
-  if(*p == '[') is_class_array = true;                                          // check if object == class array
+  if(*p == '*') is_class_pointer = true, p++;                 // check if object == class pointer
+  while(VARCHAR(*p)) object_name[j++] = *p++;                 // store object's name, class, & ptr status
+  if(*p == '[') is_class_array = true;                        // check if object == class array
   object_name[j] = '\0', class_type_name[i] = '\0';
   if(strlen(object_name) == 0 || class_type_name[strlen(class_type_name)-1] == ',') return false; // prototype fcn arg
   strcpy(objects[total_objects].object_name, object_name);
@@ -770,15 +1088,30 @@ int get_initialized_member_value(char *member_end) {
   int i = 0, distance_back = 0;
   --member_end, ++distance_back;
   while(*member_end != '\0' && no_overlap(*member_end, "=;\n")) --member_end, ++distance_back; // find '='
-  if(*member_end == '=') {                                                                       // is initialized value
+  if(*member_end == '=') {                                                                     // is initialized value
     start_of_val = member_end + 1;
-    while(IS_WHITESPACE(*start_of_val)) start_of_val++;                                          // find start of value
-    for(; *start_of_val != ';'; i++, ++start_of_val)                                             // copy initialized value
+    while(IS_WHITESPACE(*start_of_val)) start_of_val++;                                        // find start of value
+    for(; *start_of_val != ';'; i++, ++start_of_val)                                           // copy initialized value
       classes[total_classes].member_values[classes[total_classes].total_members][i] = *start_of_val;
     classes[total_classes].member_values[classes[total_classes].total_members][i] = '\0';
-    while(IS_WHITESPACE(*member_end) || *member_end == '=') --member_end, ++distance_back;       // move ptr to end of member name to copy
+    
+    // determine whether initialized member value was a malloc/calloc (to be freed by garbage collector)
+    classes[total_classes].member_value_is_alloc[classes[total_classes].total_members] = false;
+    char *is_alloc = classes[total_classes].member_values[classes[total_classes].total_members];
+    char *value_front = is_alloc;
+    while(*is_alloc != '\0') {
+      if(strlen(is_alloc) > 5 && (is_at_substring(is_alloc, "malloc") || is_at_substring(is_alloc, "calloc")) 
+        && (is_alloc == value_front || !VARCHAR(*(is_alloc-1))) && !VARCHAR(*(is_alloc+6))) {
+        classes[total_classes].member_value_is_alloc[classes[total_classes].total_members] = true;
+        classes[total_classes].class_has_alloc = true;
+        break;
+      }
+      ++is_alloc;
+    }
+    
+    while(IS_WHITESPACE(*member_end) || *member_end == '=') --member_end, ++distance_back; // move ptr to end of member name to copy
     --distance_back; // [start, end) so move end ptr right after name
-  } else {                                                                                       // no initialized value: set to 0
+  } else {                                                                                 // no initialized value: set to 0
     classes[total_classes].member_values[classes[total_classes].total_members][0] = 0;
     classes[total_classes].member_values[classes[total_classes].total_members][1] = '\0';
     distance_back = 0;
@@ -796,8 +1129,7 @@ void register_member_class_objects(char *member_end) {
   char member_type[100], member_name[100]; 
   int idx = 0;
   bool is_class_pointer = false, is_class_array = false;
-  FLOOD_ZEROS(member_type, 100);
-  FLOOD_ZEROS(member_name, 100);
+  FLOOD_ZEROS(member_type, 100); FLOOD_ZEROS(member_name, 100);
 
   // find the member's data type & determine if type is a class name (thus member = class object)
   while(VARCHAR(*member_end)) member_type[idx++] = *member_end++; 
@@ -812,6 +1144,9 @@ void register_member_class_objects(char *member_end) {
       while(VARCHAR(*member_end)) member_name[idx++] = *member_end++; // copy member/class-object name
       if(*member_end == '[') is_class_array = true;                   // check if member is class array
       member_name[idx] = '\0';
+
+      // record whether member class object has a alloc'd member to destroy/free
+      if(classes[i].class_has_alloc) classes[total_classes].class_has_alloc = true;
 
       // record member class object's class name
       strcpy(classes[total_classes].member_object_class_name[classes[total_classes].total_members], member_type);
@@ -828,6 +1163,38 @@ void register_member_class_objects(char *member_end) {
   // if not a class, class name is 0
   classes[total_classes].member_object_class_name[classes[total_classes].total_members][0] = 0;
   classes[total_classes].member_object_class_name[classes[total_classes].total_members][1] = '\0';
+}
+
+// check if sizeof() arg is the member just created (ie *node = malloc(sizeof(node));) and if so, 
+// prepend sizeof arg with "this" (ie sizeof(this.node)) for global initializer fcn & deep-copy fcn
+void check_for_alloc_sizeof_arg() {
+  int len = classes[total_classes].total_members;
+  if(classes[total_classes].member_values[len][0] == 0 || !classes[total_classes].member_value_is_alloc[len]) return;
+  char *p = classes[total_classes].member_values[len], *name = classes[total_classes].member_names[len], *size, *prep, *q;
+  char member_name[MAX_INIT_VALUE_LENGTH], prepended_sizeof_arg[260];
+  FLOOD_ZEROS(member_name, MAX_INIT_VALUE_LENGTH); FLOOD_ZEROS(prepended_sizeof_arg, 260);
+  size = member_name, prep = prepended_sizeof_arg;
+  while(*p != '\0' && strlen(p) > 7) {
+    if(is_at_substring(p, "sizeof(")) {
+      p += 7;                                          // skip past sizeof
+      while(*p != '\0' && !VARCHAR(*p)) ++p;           // skip past potential '*'
+      char *startOfSizeofArg = p;
+      while(*p != '\0' && VARCHAR(*p)) *size++ = *p++; // copy name
+      *size = '\0';
+      if(strcmp(member_name, name) == 0) { // check if sizeof() arg is the member just created (ie *node = malloc(sizeof(node));)
+        q = classes[total_classes].member_values[len];
+        while(*q != '\0' && q != startOfSizeofArg) *prep++ = *q++; // copy up to sizeof arg
+        sprintf(prep, "this.");                                    // prepend size of arg with "this"
+        prep += strlen(prep);
+        while(*q != '\0') *prep++ = *q++;                          // copy rest of sizeof arg
+        *prep = '\0';
+        FLOOD_ZEROS(classes[total_classes].member_values[len], MAX_INIT_VALUE_LENGTH);
+        strcpy(classes[total_classes].member_values[len], prepended_sizeof_arg);
+        break;
+      }
+    }
+    ++p;
+  }
 }
 
 // check for & store member in class - returns 0 = no member, 1 = member, 2 = member initialized with values
@@ -857,8 +1224,9 @@ int get_class_member(char *end, bool is_fcn_ptr) {
     for(; member_start != member_end; ++member_start) 
       if(VARCHAR(*member_start)) classes[total_classes].member_names[len][i++] = *member_start;
     classes[total_classes].member_names[len][i] = '\0';
+    check_for_alloc_sizeof_arg();                                    // prepend alloc sizeof() arg w/ "this." if arg = newest member
     classes[total_classes].total_members += 1;
-    return 1 + (classes[total_classes].member_values[classes[total_classes].total_members-1][0] != 0);
+    return 1 + (classes[total_classes].member_values[len][0] != 0);
   }
   return 0;
 }
@@ -936,12 +1304,12 @@ void splice_in_this_arrowPtr(char *method_buff_idx) {
 int parse_local_nested_method(char *end, char *method_buff_idx, char *class_name, char method_words[][75]) {
   int prepended_size = 0;
   if(!VARCHAR(*end) && VARCHAR(*(end + 1))) {
-    *method_buff_idx++ = *end++, prepended_size++;                      // move to first letter
+    *method_buff_idx++ = *end++, prepended_size++;                            // move to first letter
     char method_name[75];
     FLOOD_ZEROS(method_name, 75);
     int i = 0;
-    while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++;   // copy method name
-    if(*end != '(') return 0;                                           // if no method
+    while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++;         // copy method name
+    if(*end != '(') return 0;                                                 // if no method
     method_name[i] = '\0';
     if(strcmp(classes[total_classes].class_name, class_name) == 0)  
       for(int j = 0; j < classes[total_classes].total_methods; ++j)           // find if class has method name
@@ -997,6 +1365,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   // store class info in global struct
   strcpy(classes[total_classes].class_name, class_name);
   classes[total_classes].total_methods = 0, classes[total_classes].total_members = 0;
+  classes[total_classes].class_has_alloc = false;
 
   // # of class or comment chars
   int class_size = 0, class_comment_size, blank_line_size;
@@ -1007,9 +1376,6 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   bool in_a_string;
   while(*start++ != '{') class_size++;
   end = start;
-
-  // replace all comments in class w/ whitespaces
-  whitespace_all_class_comments(end);
 
   // copy members to struct_buff & methods to method_buff
   while(*end != '\0' && in_class_scope > 0) {
@@ -1054,6 +1420,15 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
     // check for function method
     if(*end == '(') { 
+      // check for function assignment -- especially for 'malloc'/'calloc'
+      char *findEq = end;
+      while(no_overlap(*findEq, "\n=;")) --findEq; // move to either beginning of line or assignment
+      if(*findEq == '=') {                         // if function is being assigned
+        while(*end != '\0' && *end != '\n')        // move to the end of the line
+          *struct_buff_idx++ = *end++, ++class_size;
+        continue;                                  // invoke the next loop iteration to trigger the "member" detection logic above
+      }
+
       // check for fcn ptr => treated as member
       if(*(end + 1) == '*') { 
         while(*end != '\0' && *end != ')') *struct_buff_idx++ = *end++, class_size++;
@@ -1099,8 +1474,10 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
         // Check for class objects in method argument
         int k; 
         for(k = 0; k < total_classes + 1; ++k)
-          if(is_at_substring(end, classes[k].class_name)) {
+          if(is_at_substring(end, classes[k].class_name) 
+            && !VARCHAR(*(end + strlen(classes[k].class_name))) && !VARCHAR(*(end-1))) {
             store_object_info(end);                                                       // register object arg as a class object instance
+            objects[total_objects-1].has_alloc = classes[k].class_has_alloc;
             break; 
           }
         // Save method's words in argument
@@ -1112,7 +1489,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
         *method_buff_idx++ = *end++, class_size++;                                        // copy method up to ')'
       }
 
-      // splice in'this' class ptr as last arg in method
+      // splice in 'this' class ptr as last arg in method
       if(*(end - 1) == '(') sprintf(method_buff_idx, "%s *this", class_name);             // spliced class ptr is single method arg                      
       else                  sprintf(method_buff_idx, ", %s *this", class_name);           // spliced class ptr is poly method arg
       method_buff_idx += strlen(method_buff_idx); 
@@ -1132,10 +1509,13 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
           if(is_at_substring(end, classes[k].class_name) 
             && !VARCHAR(*(end-1)) && !VARCHAR(*(end+strlen(classes[k].class_name)))) {
             if(store_object_info(end)) {
+              objects[total_objects-1].has_alloc = classes[k].class_has_alloc;
               char *already_assigned = end;
               while(*already_assigned != '\0' && no_overlap(*already_assigned, "\n;,=")) ++already_assigned;
-              if(*already_assigned == '=') break; 
-              // initialization undefined -- use default initial values
+              if(*already_assigned == '=') {
+                while(*already_assigned != '\0' && no_overlap(*already_assigned, "\n;(")) ++already_assigned; // find if value from fcn
+                break;
+              }
               while(*end != '\0' && *(end-1) != ';') *method_buff_idx++ = *end++, ++class_size;
               if(objects[total_objects-1].is_class_array) // object = array, use array macro init
                 sprintf(method_buff_idx, " DECLASS__%s_ARR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
@@ -1201,32 +1581,40 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   if(*(end - 1) == ';') end++, class_size++;
 
   // copy the constructor macros, class-converted-to-struct, & spliced-out methods to 'NEW_FILE'
-  char macro_comment[100], struct_comment[100], method_comment[100];
-  FLOOD_ZEROS(macro_comment, 100); FLOOD_ZEROS(struct_comment, 100); FLOOD_ZEROS(method_comment, 100);
-  sprintf(macro_comment, "/* %s CLASS DEFAULT VALUE MACRO CONSTRUCTORS: */\n", class_name);
+  char macro_ctor_comment[100], struct_comment[100], method_comment[100];
+  FLOOD_ZEROS(macro_ctor_comment, 100); FLOOD_ZEROS(struct_comment, 100); FLOOD_ZEROS(method_comment, 100);
+  sprintf(macro_ctor_comment, "/* %s CLASS DEFAULT VALUE MACRO CONSTRUCTORS: */\n", class_name);
   sprintf(struct_comment, "\n\n/* %s CLASS CONVERTED TO STRUCT: */\n", class_name);
   sprintf(method_comment, "\n\n/* %s CLASS METHODS SPLICED OUT: */", class_name);
 
   // make a global class object with default values to initialize client's unassigned class objects with
-  char initial_values_brace[200];
-  FLOOD_ZEROS(initial_values_brace, 200);
+  char initial_values_brace[500];
+  FLOOD_ZEROS(initial_values_brace, 500);
   mk_initialization_brace(initial_values_brace, total_classes);
-  char class_global_initializer[375];
-  FLOOD_ZEROS(class_global_initializer, 375);
-  sprintf(class_global_initializer, "\nconst %s DECLASS__%s_DFLT = %s;", class_name, class_name, initial_values_brace);
+  char class_global_initializer[2500];
+  FLOOD_ZEROS(class_global_initializer, 2500);
+  mk_class_global_initializer(class_global_initializer, class_name, initial_values_brace);
 
-  // make macro constructors to assign any objects of this class its default values, as well as
+  // make macro ctors to assign any objects of this class its default values, as well as
   // initialize any contained class object members too - both for single & array instances of objects
   char ctor_macros[2500];
-  FLOOD_ZEROS(ctor_macros, 2500);
-  mk_ctor_macros(ctor_macros, class_name);
+  FLOOD_ZEROS(ctor_macros, 2500); mk_ctor_macros(ctor_macros, class_name); 
+
+  char deep_cpy_fcns[3500];
+  char deep_cpy_fcns_comment[100];
+  if(DEEP_COPY) {
+    FLOOD_ZEROS(deep_cpy_fcns, 3500); FLOOD_ZEROS(deep_cpy_fcns_comment, 100);
+    mk_deep_copy_class_fcns(deep_cpy_fcns);
+    sprintf(deep_cpy_fcns_comment, "\n\n/* %s CLASS DEEP COPY FUNCTIONS: */\n", class_name);
+  }
 
   // struct before methods to use class/struct type for method's 'this' ptr args
   if(strlen(struct_buff) > 0) {
     APPEND_BUFF_OR_STR_TO_NEW_FILE("/******************************** CLASS START ********************************/\n");
-    APPEND_BUFF_OR_STR_TO_NEW_FILE(macro_comment);  APPEND_BUFF_OR_STR_TO_NEW_FILE(ctor_macros);
+    APPEND_BUFF_OR_STR_TO_NEW_FILE(macro_ctor_comment); APPEND_BUFF_OR_STR_TO_NEW_FILE(ctor_macros);
     APPEND_BUFF_OR_STR_TO_NEW_FILE(struct_comment); APPEND_BUFF_OR_STR_TO_NEW_FILE(struct_buff);
     APPEND_BUFF_OR_STR_TO_NEW_FILE(class_global_initializer);
+    if(DEEP_COPY) { APPEND_BUFF_OR_STR_TO_NEW_FILE(deep_cpy_fcns_comment); APPEND_BUFF_OR_STR_TO_NEW_FILE(deep_cpy_fcns); }
     if(strlen(method_buff) > 0) APPEND_BUFF_OR_STR_TO_NEW_FILE(method_comment); APPEND_BUFF_OR_STR_TO_NEW_FILE(method_buff);
     APPEND_BUFF_OR_STR_TO_NEW_FILE("\n/********************************* CLASS END *********************************/");
   }
