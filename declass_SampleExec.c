@@ -2,9 +2,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
+#include <stdlib.h>
+
+// declass.c - Specific Memory Handling Flags
+// #define DECLASS_NFREE // 'no free' disables garbage collector -- any 'malloc'/'calloc' default values have to be freed by user
+// #define DECLASS_NDEEP // 'no deep' disables universal '.deepcpy()' method for classes -- in case user wants to make their own
 
 /*****************************************************************************
- *                      -:- DECLASS.C 8 CAVEATS -:-                         *
+ *                       -:- DECLASS.C 8 CAVEATS -:-                        *
  *   (1) 'DECLASS_' PREFIX & 'this' POINTER ARE RESERVED                    *
  *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
@@ -28,11 +33,20 @@
  *       * ALTERNATIVES: (1) simply include a c1 object as a member in c3   *
  *                       (2) create methods in c2 invoking c1 methods as    *
  *                           an interface for c3                            *
+ *****************************************************************************
+ *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
+ *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
+ *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
+ *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
+ *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
+ *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
+ *       * W/O MEM-ALLOC8ED DEFAULT VALS, ".deepcpy()" JUST RETURNS THE OBJ *
  *****************************************************************************/
 
 class Student {
-  // note that class member values default to 0 unless otherwise indicated
-  char fullname[50];
+  // note that class member values default to 0 unless otherwise indicated, and
+  // malloc/calloc default values are freed automatically atexit if "DECLASS_NFREE" not #defined
+  char *fullname = malloc(sizeof(char)*50); 
   char school[15] = "SCU";         // default school name
   int year = 14;                   // default school year 
   long studentId;
@@ -171,7 +185,7 @@ int main() {
   // Single object
   printf("Working with a single \"Student\" object:\n");
   Student jordanCR;
-  jordanCR.assignId(1524026);              // assign ID to Stduent object
+  jordanCR.assignId(1524026);              // assign ID to Student object
   long myId = jordanCR.getId();            // get ID
   if(2 * jordanCR.getId() > 1000)
     printf("\tStudent object: school = %s, id = %ld, myId: %ld\n", jordanCR.school, jordanCR.studentId, myId);
@@ -239,7 +253,6 @@ int main() {
   printf("\t");
   willAR.show();
 
-
   // Having a method swap 2 objects via '*this' pointer
   printf("\nHaving a method swap 2 Student objects via '*this' pointer in method:\n");
   Student jowiR;
@@ -257,7 +270,7 @@ int main() {
   willAR.show();
 
 
-  // Mylti-layer object containment - A 'Region' object containing a 'College' object array each containing a 'Student' object array
+  // Multi-layer object containment - A 'Region' object containing a 'College' object array each containing a 'Student' object array
   printf("\nMulti-Layer Object Containment - Region object containing a College object array each containing a Student object array:\n");
   Region SiliconValley;
   SiliconValley.setRegionName("Silicon Valley");
@@ -269,6 +282,15 @@ int main() {
   SantaClara.addStudents(scuNames, scuGpas, scuIds);
   SiliconValley.addSchool(SantaClara);
   SiliconValley.show();
+
+
+  // If "DECLASS_NDEEP" not #defined, all classes have the '.deepcpy()' method by default to return
+  // a copy of the invoking object w/ its memory-allocated default values allocated their own block 
+  // of memory -- w/ the copy's newly allocated memory also freed automatically atexit if "DECLASS_NFREE" not #defined
+  Region SF = SiliconValley.deepcpy();
+  SF.setRegionName("San Francisco");
+  printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
+  SF.show();
 
   return 0;
 }
