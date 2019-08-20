@@ -16,6 +16,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## C-Declassify's 8 Caveats & 2 Notes, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
+* _**Note**: the 2 notes pertain to using dynamic memory allocation default values & the_ '`.deepcpy()`' _method_
 ```c
 /*****************************************************************************
  *                      -:- DECLASS.C 8 CAVEATS -:-                         *
