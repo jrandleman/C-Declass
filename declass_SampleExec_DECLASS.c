@@ -29,7 +29,7 @@ void DECLASS__add_to_dump(void *ptr) {
     }
     DECLASS__dump.ptrs = temp;
   }
-  // add ptr to to dump if not already present (ensures no double-freeing)
+  // add ptr to dump if not already present (ensures no double-freeing)
   for(int i = 0; i < DECLASS__dump.len; ++i) if(DECLASS__dump.ptrs[i] == ptr) return;
   DECLASS__dump.ptrs[DECLASS__dump.len++] = ptr;
 }
