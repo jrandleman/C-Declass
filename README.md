@@ -16,10 +16,10 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## C-Declassify's 8 Caveats & 2 Notes, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
-* _**Note**: the 2 notes pertain to using dynamic memory allocation default values & the_ '`.deepcpy()`' _method_
+* _**Note**: the 2 notes pertain to default memory allocation values & the_ '`.deepcpy()`' _/_ '`.freenow()`' _methods_
 ```c
 /*****************************************************************************
- *                      -:- DECLASS.C 8 CAVEATS -:-                         *
+ *                       -:- DECLASS.C 8 CAVEATS -:-                        *
  *   (1) 'DECLASS_' PREFIX & 'this' POINTER ARE RESERVED                    *
  *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
@@ -44,18 +44,21 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *                       (2) create methods in c2 invoking c1 methods as    *
  *                           an interface for c3                            *
  *****************************************************************************
- *                -:- DECLASS.C MEMORY ALLOCATION NOTES -:-                 *
+ *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
  *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
  *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
+ *       * to free a ptr prior "atexit()", classes have ".freenow()" method *
+ *         by default to free a ptr passed as an argument immmediately from *
+ *         the garbage collector, UNLESS "#define DECLASS_NFREE" is enabled *
  *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
  *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
  *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
- *       * W/O MEM-ALLOC8ED DEFAULT VALS, ".deepcpy()" JUST RETURNS THE OBJ *
+ *       * w/o mem-alloc8ed default vals ".deepcpy()" just returns same obj *
  *****************************************************************************/
 ```
 --------------
 ## A Simple Sample Class:
-* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn about using object containment, arrays, pointers, default memory allocation, autonomous freeing, the universal_ '`.deepcpy()`' _method, and more!_
+* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn of object containment, arrays, pointers, default memory allocation, autonomous freeing, universal_ '`.deepcpy()`' _/_ '`.freenow()`' _methods, & more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
