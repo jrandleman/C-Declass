@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 // declass.c - Specific Memory Handling Flags
-// #define DECLASS_NFREE // 'no free' disables garbage collector -- any 'malloc'/'calloc' default values have to be freed by user
+// #define DECLASS_NFREE // 'no free' disables garbage collector & '.freenow()' method -- alloc'd default values must be freed by user
 // #define DECLASS_NDEEP // 'no deep' disables universal '.deepcpy()' method for classes -- in case user wants to make their own
 
 /*****************************************************************************
@@ -37,10 +37,13 @@
  *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
  *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
  *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
+ *       * to free a ptr prior "atexit()", classes have ".freenow()" method *
+ *         by default to free a ptr passed as an argument immmediately from *
+ *         the garbage collector, UNLESS "#define DECLASS_NFREE" is enabled *
  *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
  *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
  *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
- *       * W/O MEM-ALLOC8ED DEFAULT VALS, ".deepcpy()" JUST RETURNS THE OBJ *
+ *       * w/o mem-alloc8ed default vals ".deepcpy()" just returns same obj *
  *****************************************************************************/
 
 class Student {
@@ -291,6 +294,16 @@ int main() {
   SF.setRegionName("San Francisco");
   printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
   SF.show();
+
+
+  // If "DECLASS_NFREE" not #defined, all classes have the '.freenow()' method by default to 
+  // immediately free the default-allocated member value passed as an arg from the garbage 
+  // collector prior to "atexit"
+  Student RandomStudent;
+  College RandomCollege;
+  RandomStudent.freenow(RandomStudent.fullname); // immediately free default allocated full name
+  // immediately free default allocated member of contained class object array
+  RandomCollege.freenow(RandomCollege.body[0].fullname); 
 
   return 0;
 }
