@@ -1,6 +1,6 @@
 # C-Declassify
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
-#### **_Member Default Values/Allocation, Methods, Object Arrays/Pointers/Containment, and more!_**
+#### **_Member Default Values & Allocation, Methods, Object Arrays/Pointers/Containment, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -16,7 +16,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## C-Declassify's 8 Caveats & 2 Notes, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
-* _**Note**: the 2 notes pertain to default memory allocation values & the_ '`.deepcpy()`' _/_ '`.freenow()`' _methods_
+* _**Note**: the 2 notes pertain to default memory allocation values & the_ "`.deepcpy()`" _/_ "`.freenow()`" _methods_
 ```c
 /*****************************************************************************
  *                       -:- DECLASS.C 8 CAVEATS -:-                        *
@@ -57,8 +57,23 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *****************************************************************************/
 ```
 --------------
+## Disabling Default Methods & Features:
+### Garbage Collector/Autonomous Freeing:
+* _Garbage collection is enabled by default to free default memory allocation values for members via_ "`atexit()`" _, with a universal_ "`.freenow()`" _method also provided for users to immediately free a ptr in the garbage collector_
+* _Disable both the garbage collector &_ '`.freenow()`' _method by including the following:_ 
+  * **WARNING:** _User must now free default mem-alloc'd member values, INCLUDING those of contained objects_
+```c
+#define DECLASS_NFREE
+```
+### Universal Deep Copying Method:
+* _The_ '`.deepcpy()`' _method is also provided for all classes, returning a copy of the invoking object with their default mem-alloc'd member values allocated their own block of memory -- freed via garbage collector if not disabled_
+* _Disable the_ '`.deepcpy()`' _method by including the following:_ 
+```c
+#define DECLASS_NDEEP
+```
+--------------
 ## A Simple Sample Class:
-* _**Note**: modified from_ '`declass_SampleExec.c`'_, see whole file to learn of object containment, arrays, pointers, default memory allocation, autonomous freeing, universal_ '`.deepcpy()`' _/_ '`.freenow()`' _methods, & more!_
+* _**Note**: modified from_ "`declass_SampleExec.c`"_, see whole file to learn of object containment, arrays, pointers, default memory allocation, autonomous freeing, universal_ "`.deepcpy()`" _/_ "`.freenow()`" _methods, & more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
@@ -146,7 +161,7 @@ int main() {
 --------------
 ## '`-l`' Output for the Simple Sample Class:
 * _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
-  * _refer to the 8 caveats &_ `declass_SampleExec.c` _otherwise!_
+  * _refer to the 8 caveats &_ "`declass_SampleExec.c`" _otherwise!_
 ```
 --=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 5 ]=--
 
