@@ -62,10 +62,13 @@
  *                -:- DECLASS.C MEMORY ALLOCATION NOTES -:-                 *
  *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
  *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
+ *       * to free a ptr prior "atexit()", classes have ".freenow()" method *
+ *         by default to free a ptr passed as an argument immmediately from *
+ *         the garbage collector, UNLESS "#define DECLASS_NFREE" is enabled *
  *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
  *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
  *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
- *       * W/O MEM-ALLOC8ED DEFAULT VALS, ".deepcpy()" JUST RETURNS THE OBJ *
+ *       * w/o mem-alloc8ed default vals ".deepcpy()" just returns same obj *
  *****************************************************************************/
 
 // stores class names, & their associated methods
@@ -122,7 +125,7 @@ void mk_class_global_initializer(char *, char *, char *);
 void mk_deep_copy_class_fcns(char []);
 /* OBJECT METHOD PARSER */
 int parse_method_invocation(char *, char *, int *, bool, char[][75]);
-void splice_in_prepended_method_name(char *, char *, int, char *, int *, int *, char[][75]);
+void splice_in_prepended_method_name(char *, char *, int, char *, int *, int *, char[][75], bool);
 void splice_in_prepended_NESTED_method_name(char *, char *, int, char *, int *, char[][75]);
 void rmv_excess_buffer_objectChain(char *, char *, char *, char *, char *);
 /* OBJECT METHOD PARSER HELPER FUNCTIONS */
@@ -192,7 +195,18 @@ void DECLASS__add_to_dump(void *ptr) { \n\
 void DECLASS__empty_dump() { // invoked by atexit to free all ctor-alloc'd memory\n\
   for(int i = 0; i < DECLASS__dump.len; ++i) free(DECLASS__dump.ptrs[i]);\n\
   if(DECLASS__dump.len > 0) free(DECLASS__dump.ptrs);\n\
+  // if(DECLASS__dump.len > 0) printf(\"FREED %ld DEFAULT ALLOCATIONS!\\n\", DECLASS__dump.len);\n\
   DECLASS__dump.len = 0;\n\
+}\n\
+void DECLASS__free_now(void *ptr) { // user-invoked, prematurely frees ptr from garbage collector\n\
+  for(int i = 0; i < DECLASS__dump.len; ++i) // find ptr in garbage collector\n\
+    if(DECLASS__dump.ptrs[i] == ptr) {\n\
+      free(ptr);\n\
+      for(int j = i; j < DECLASS__dump.len - 1; ++j) // shift ptrs down\n\
+        DECLASS__dump.ptrs[j] = DECLASS__dump.ptrs[j + 1];\n\
+      DECLASS__dump.len--;\n\
+      return;\n\
+    }\n\
 }\n\
 /*************************** GARBAGE COLLECTOR END ***************************/"
 
@@ -390,14 +404,14 @@ void add_braces(char file_contents[]) {
 void confirm_valid_file(char *filename) {
   struct stat buf;
   if(stat(filename, &buf)) {
-    fprintf(stderr, "-:- FILE %s DOES NOT EXIST! -:-\n", filename);
+    fprintf(stderr, "-:- FILE \"%s\" DOES NOT EXIST! -:-\n\n", filename);
     exit(EXIT_FAILURE);
   }
   if(buf.st_size > MAX_FILESIZE || buf.st_size == 0) {
     if(buf.st_size > MAX_FILESIZE) {
-      fprintf(stderr, "-:- FILE %s SIZE %lld BYTES EXCEEDS %d BYTE CAP! -:- \n", filename, buf.st_size, MAX_FILESIZE); 
-      fprintf(stderr, "-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n");
-    } else fprintf(stderr, "-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n"); 
+      fprintf(stderr, "-:- FILE \"%s\" SIZE %lld BYTES EXCEEDS %d BYTE CAP! -:- \n", filename, buf.st_size, MAX_FILESIZE); 
+      fprintf(stderr, "-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n\n");
+    } else fprintf(stderr, "-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n\n"); 
     exit(EXIT_FAILURE);
   }
 }
@@ -562,8 +576,8 @@ void mk_initialization_brace(char brace[], int class_index) {
   char *p = brace;
   *p++ = '{';
   for(int j = 0; j < classes[class_index].total_members; ++j) {
-    if(classes[class_index].member_values[j][0] == 0) {               // empty value
-      if(classes[class_index].member_names[j][0] == 0) continue;      // if struct's member (struct inner members' name = value = 0), skip
+    if(classes[class_index].member_values[j][0] == 0) {              // empty value
+      if(classes[class_index].member_names[j][0] == 0) continue;     // if struct's member (struct inner members' name = value = 0), skip
       else if(classes[class_index].member_is_array[j] || (j > 0 && classes[class_index].member_names[j-1][0] == 0)
         || (classes[class_index].member_object_class_name[j][0] != 0 && !classes[class_index].member_is_pointer[j]))
           sprintf(p, "{0},");                                        // wrap empty (non-ptr) array/object/struct value in braces
@@ -747,20 +761,22 @@ int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_meth
         char invoked_member_name[75];
         get_invoked_member_name(p + len + invoker_size, invoked_member_name);  // get member name
         bool method_is_DECLASS_deepcpy = (strcmp(invoked_member_name, "deepcpy") == 0);
+        bool method_is_DECLASS_freenow = (strcmp(invoked_member_name, "freenow") == 0);
         if(invoked_member_is_method(invoked_member_name, objects[i].class_name, is_nested_method)) { // member = method
           while((invoker_size = is_method_invocation(p)) > 0 || VARCHAR(*p)) { // move p to after object & method names
             if(invoker_size == 0) invoker_size = 1; // VARCHAR
             p += invoker_size, method_name_size += invoker_size;
           }
           method_name_size++;                                                  // account for 1st char ('%c' in sprintf below)
-          if(method_is_DECLASS_deepcpy) sprintf(new_fcn_call, "%cDECLASS_deepcpy_%s", first_char, objects[i].class_name);
-          else                          sprintf(new_fcn_call, "%cDECLASS_%s_%s", first_char, objects[i].class_name, invoked_member_name);
+          if(method_is_DECLASS_deepcpy && DEEP_COPY) sprintf(new_fcn_call, "%cDECLASS_deepcpy_%s", first_char, objects[i].class_name);
+          else if(method_is_DECLASS_freenow && AUTO_FREE) sprintf(new_fcn_call, "%cDECLASS__free_now", first_char);
+          else sprintf(new_fcn_call, "%cDECLASS_%s_%s", first_char, objects[i].class_name, invoked_member_name);
 
           // whether method is invoked within another method, but splice in either way
-          if(is_nested_method && !method_is_DECLASS_deepcpy)
+          if(is_nested_method && !method_is_DECLASS_deepcpy && !method_is_DECLASS_freenow)
             splice_in_prepended_NESTED_method_name(new_fcn_call, p, i, NEW_FILE, &method_name_size, method_words);
           else
-            splice_in_prepended_method_name(new_fcn_call, p, i, NEW_FILE, j, &method_name_size, method_words);
+            splice_in_prepended_method_name(new_fcn_call, p, i, NEW_FILE, j, &method_name_size, method_words, method_is_DECLASS_freenow);
           break;
         }
       }
@@ -770,7 +786,7 @@ int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_meth
 }
 
 // splice in prepended method name to buffer via an index subscript
-void splice_in_prepended_method_name(char*new_fcn_call,char*p,int i,char*NEW_FILE,int*j,int*method_name_size,char method_words[][75]) {
+void splice_in_prepended_method_name(char*new_fcn_call,char*p,int i,char*NEW_FILE,int*j,int*method_name_size,char method_words[][75],bool is_freenow) {
   char objectName[200], objectChain[200]; // 'objectName' refers to outermost object in 'objectChain
   bool objectName_is_pointer = false;
   FLOOD_ZEROS(objectName, 200); 
@@ -784,10 +800,12 @@ void splice_in_prepended_method_name(char*new_fcn_call,char*p,int i,char*NEW_FIL
 
   // splice in prefixed method name & add invoker's address to end of arguments
   APPEND_BUFF_OR_STR_TO_NEW_FILE(new_fcn_call);
-  while(*p != '\0' && *p != ')') NEW_FILE[(*j)++] = *p++, (*method_name_size)++;
-  if(*(p - 1) != '(') NEW_FILE[(*j)++] = ',', NEW_FILE[(*j)++] = ' ';
-  if(objectName_is_pointer) sprintf(&NEW_FILE[*j], "%s", objectChain);  // splice in ptr obj address
-  else                      sprintf(&NEW_FILE[*j], "&%s", objectChain); // splice in val obj address
+  if(!is_freenow || !AUTO_FREE) {
+    while(*p != '\0' && *p != ')') NEW_FILE[(*j)++] = *p++, (*method_name_size)++;
+    if(*(p - 1) != '(') NEW_FILE[(*j)++] = ',', NEW_FILE[(*j)++] = ' ';
+    if(objectName_is_pointer) sprintf(&NEW_FILE[*j], "%s", objectChain);  // splice in ptr obj address
+    else                      sprintf(&NEW_FILE[*j], "&%s", objectChain); // splice in val obj address
+  }
   *j = strlen(NEW_FILE);
 }
 
@@ -886,7 +904,8 @@ bool invoked_member_is_method(char *invoked_member_name, char *class_name, bool 
     if(strcmp(classes[i].class_name, class_name) == 0)
       for(int j = 0; j < classes[i].total_methods; ++j)
         if(strcmp(classes[i].method_names[j], invoked_member_name) == 0
-          || strcmp("deepcpy", invoked_member_name) == 0) return true;
+          || (DEEP_COPY && strcmp("deepcpy", invoked_member_name) == 0)
+          || (AUTO_FREE && strcmp("freenow", invoked_member_name) == 0)) return true;
   return false;
 }
 
@@ -986,11 +1005,20 @@ void get_object_name(char *outerMost_objectName, char *objectChain, char *buffer
 // prefixes local members with 'this->' & cpys entire method arg to 'write_to_buffer'
 int prefix_local_members_and_cpy_method_args(char *end, char *write_to_buffer, char method_words[][75], int *buffer_length, char delimiter) {
   int end_increment = 0;
-  char *word_start = end + 1;
+  char *word_start = end + 1, *findArrow;
   while(*end != '\0' && *end != delimiter) { // copy method arguments
     // search the invoked local method's args for any local members
-    if(!VARCHAR(*end) && VARCHAR(*(end+1))) word_start = end + 1; 
-    else if(VARCHAR(*end) && !VARCHAR(*(end+1))) {                            // at argument word's end
+    if(!VARCHAR(*end) && *end != '.' && (*end != '>' || *(end-1) != '-') && VARCHAR(*(end+1))) {
+      if(IS_WHITESPACE(*end)) {                       // dont prefixed an invoked member with 'this'
+        findArrow = end;
+        while(IS_WHITESPACE(*findArrow)) --findArrow; // screen for arrow invocation
+        if(*findArrow == '>' && *(findArrow-1) == '-') {
+          *write_to_buffer++ = *end++, *buffer_length += 1, ++end_increment;
+          continue;
+        }
+      }
+      word_start = end + 1; 
+    } else if(VARCHAR(*end) && !VARCHAR(*(end+1))) {                          // at argument word's end
       char argument[75];
       FLOOD_ZEROS(argument, 75);
       int idx = 0;
@@ -1304,24 +1332,27 @@ void splice_in_this_arrowPtr(char *method_buff_idx) {
 int parse_local_nested_method(char *end, char *method_buff_idx, char *class_name, char method_words[][75]) {
   int prepended_size = 0;
   if(!VARCHAR(*end) && VARCHAR(*(end + 1))) {
-    *method_buff_idx++ = *end++, prepended_size++;                            // move to first letter
+    *method_buff_idx++ = *end++, prepended_size++;                    // move to first letter
     char method_name[75];
     FLOOD_ZEROS(method_name, 75);
     int i = 0;
-    while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++;         // copy method name
-    if(*end != '(') return 0;                                                 // if no method
+    while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++; // copy method name
+    if(*end != '(') return 0;                                         // if no method
     method_name[i] = '\0';
-    if(strcmp(classes[total_classes].class_name, class_name) == 0)  
-      for(int j = 0; j < classes[total_classes].total_methods; ++j)           // find if class has method name
-        if(strcmp(classes[total_classes].method_names[j], method_name) == 0) {
-          sprintf(method_buff_idx, "DECLASS_%s_%s", class_name, method_name); // prepend method name w/ 'className'_
-          method_buff_idx += strlen(method_buff_idx);
-          // copy method arguments & prefix any local members w/in w/ 'this->'
-          end += prefix_local_members_and_cpy_method_args(end, method_buff_idx, method_words, &prepended_size, ')');
-          method_buff_idx += strlen(method_buff_idx);
-          (*(end - 1) == '(') ? sprintf(method_buff_idx, "this") : sprintf(method_buff_idx, ", this");
-          return prepended_size;
-        }
+    bool is_deepcpy = strcmp("deepcpy", method_name) == 0;
+    bool is_freenow = strcmp("freenow", method_name) == 0;
+    for(int j = 0; j < classes[total_classes].total_methods; ++j)     // find if class has method name
+      if(strcmp(classes[total_classes].method_names[j], method_name) == 0 || (DEEP_COPY && is_deepcpy) || (AUTO_FREE && is_freenow)) {
+        if(is_deepcpy && DEEP_COPY)      sprintf(method_buff_idx, "DECLASS_deepcpy_%s", class_name);
+        else if(is_freenow && AUTO_FREE) sprintf(method_buff_idx, "DECLASS__free_now");
+        else        sprintf(method_buff_idx, "DECLASS_%s_%s", class_name, method_name); // prepend method name w/ 'className'_
+        method_buff_idx += strlen(method_buff_idx);
+        // copy method arguments & prefix any local members w/in w/ 'this->'
+        end += prefix_local_members_and_cpy_method_args(end, method_buff_idx, method_words, &prepended_size, ')');
+        method_buff_idx += strlen(method_buff_idx);
+        if(!is_freenow) (*(end - 1) == '(') ? sprintf(method_buff_idx, "this") : sprintf(method_buff_idx, ", this");
+        return prepended_size;
+      }
   }
   return 0;
 }
