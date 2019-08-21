@@ -36,7 +36,18 @@ void DECLASS__add_to_dump(void *ptr) {
 void DECLASS__empty_dump() { // invoked by atexit to free all ctor-alloc'd memory
   for(int i = 0; i < DECLASS__dump.len; ++i) free(DECLASS__dump.ptrs[i]);
   if(DECLASS__dump.len > 0) free(DECLASS__dump.ptrs);
+  // if(DECLASS__dump.len > 0) printf("FREED %ld DEFAULT ALLOCATIONS!\n", DECLASS__dump.len);
   DECLASS__dump.len = 0;
+}
+void DECLASS__free_now(void *ptr) { // user-invoked, prematurely frees ptr from garbage collector
+  for(int i = 0; i < DECLASS__dump.len; ++i) // find ptr in garbage collector
+    if(DECLASS__dump.ptrs[i] == ptr) {
+      free(ptr);
+      for(int j = i; j < DECLASS__dump.len - 1; ++j) // shift ptrs down
+        DECLASS__dump.ptrs[j] = DECLASS__dump.ptrs[j + 1];
+      DECLASS__dump.len--;
+      return;
+    }
 }
 /*************************** GARBAGE COLLECTOR END ***************************/
 
@@ -378,6 +389,16 @@ int main() {
   DECLASS_Region_setRegionName("San Francisco", &SF);
   printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
   DECLASS_Region_show(&SF);
+
+
+
+
+
+  Student RandomStudent; DECLASS__Student_CTOR(RandomStudent);
+  College RandomCollege; DECLASS__College_CTOR(RandomCollege);
+  DECLASS__free_now(RandomStudent.fullname);
+
+  DECLASS__free_now(RandomCollege.body[0].fullname);
 
   return 0;
 }
