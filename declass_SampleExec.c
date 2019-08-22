@@ -3,10 +3,9 @@
 #include <string.h>
 #include <float.h>
 #include <stdlib.h>
-
 // declass.c - Specific Memory Handling Flags
-// #define DECLASS_NFREE // 'no free' disables garbage collector & '.freenow()' method -- alloc'd default values must be freed by user
-// #define DECLASS_NDEEP // 'no deep' disables universal '.deepcpy()' method for classes -- in case user wants to make their own
+// #define DECLASS_NSMRTPTR // disables default inclusion of "smrtptr.h" library for garbage collection
+// #define DECLASS_NDEEPCPY // disables default usniversal inclusion of ".deepcpy()" class method
 
 /*****************************************************************************
  *                       -:- DECLASS.C 8 CAVEATS -:-                        *
@@ -35,21 +34,19 @@
  *                           an interface for c3                            *
  *****************************************************************************
  *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
- *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
- *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
- *       * to free a ptr prior "atexit()", classes have ".freenow()" method *
- *         by default to free a ptr passed as an argument immmediately from *
- *         the garbage collector, UNLESS "#define DECLASS_NFREE" is enabled *
- *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
- *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
- *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
- *       * w/o mem-alloc8ed default vals ".deepcpy()" just returns same obj *
+ *   (1) W/O "#define DECLASS_NSMRTPTR", THE SMRTPTR.H LIBRARY IS INCLUDED, *
+ *       W/ IMPROVED MALLOC/CALLOC/REALLOC/FREE FCNS & GARBAGE COLLECTION   *
+ *       * "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"     *
+ *   (2) W/O "#define DECLASS_NDEEPCPY", ALL CLASSES HAVE THE ".deepcpy()"  *
+ *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEMORY       *
+ *       ALLOCATED DEFAULT VALUES ALLOCATED ANEW                            *
+ *       * ".deepcpy()" allocates members as defined, "smrt" or otherwise   *
  *****************************************************************************/
 
 class Student {
   // note that class member values default to 0 unless otherwise indicated, and
-  // malloc/calloc default values are freed automatically atexit if "DECLASS_NFREE" not #defined
-  char *fullname = malloc(sizeof(char)*50); 
+  // malloc/calloc default values are freed automatically atexit if "DECLASS_NSMRTPTR" not #defined
+  char *fullname = smrtmalloc(sizeof(char)*50); 
   char school[15] = "SCU";         // default school name
   int year = 14;                   // default school year 
   long studentId;
@@ -287,23 +284,13 @@ int main() {
   SiliconValley.show();
 
 
-  // If "DECLASS_NDEEP" not #defined, all classes have the '.deepcpy()' method by default to return
+  // If "DECLASS_NDEEPCPY" not #defined, all classes have the '.deepcpy()' method by default to return
   // a copy of the invoking object w/ its memory-allocated default values allocated their own block 
-  // of memory -- w/ the copy's newly allocated memory also freed automatically atexit if "DECLASS_NFREE" not #defined
+  // of memory -- w/ the copy's memory being allocated as default was assigned ("smrt" or otherwise)
   Region SF = SiliconValley.deepcpy();
   SF.setRegionName("San Francisco");
   printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
   SF.show();
-
-
-  // If "DECLASS_NFREE" not #defined, all classes have the '.freenow()' method by default to 
-  // immediately free the default-allocated member value passed as an arg from the garbage 
-  // collector prior to "atexit"
-  Student RandomStudent;
-  College RandomCollege;
-  RandomStudent.freenow(RandomStudent.fullname); // immediately free default allocated full name
-  // immediately free default allocated member of contained class object array
-  RandomCollege.freenow(RandomCollege.body[0].fullname); 
 
   return 0;
 }
