@@ -1,6 +1,6 @@
 # Declass-C
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
-#### **_Member Default Values & Allocation, Methods, Object Arrays/Pointers/Containment, Smart Pointers, & more!_**
+#### **_Member Default Values & Allocation, Methods, Object Arrays/Pointers/Containment, Smart Pointers, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -64,95 +64,95 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 #define DECLASS_NSMRTPTR
 ```
 ### Universal Deep Copying Method:
-* _The_ '`.deepcpy()`' _method is also provided for all classes, returning a copy of the invoking object with default mem-alloc'd member values allocated their own block of memory exactly as the default was ("smrt" or otherwise)_
-* _Disable the_ '`.deepcpy()`' _method by including the following:_ 
+* _The_ "`.deepcpy()`" _method is also provided for all classes, returning a copy of the invoking object with default mem-alloc'd member values allocated their own block of memory exactly as the default was ("smrt" or otherwise)_
+* _Disable the_ "`.deepcpy()`" _method by including the following:_ 
 ```c
 #define DECLASS_NDEEPCPY
 ```
 --------------
-## A Simple Sample Class:
-* _**Note**: see_ "`declass_SampleExec.c`"_, to learn more about object containment, arrays, pointers, default memory allocation, autonomous freeing via smrtptr.h, the universal_ "`.deepcpy()`" _method, & more!_
+## A Simple Sample Stack Class:
+* _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h autonomous freeing, universal_ "`.deepcpy()`" _method, "this" ptr, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <float.h>
 #include <stdbool.h>
 
-class Student {            // 'class' keyword tips off declass.c
-  char fullname[50];       // empty values default to 0 (an array of 0's in this case)
-  char school[15] = "SCU"; // all 'Student' objects will default with "SCU" as 'school' member value
-  int schoolYear = 14;     // default school year as well
-  bool deansList;
-  char *(*copy_fcnPtr)() = strcpy; // function pointer members can also be initialized!
-
-  struct grade_info {
-    char major[50]; 
-    float out_of;
-    float gpa;
-  } grades = {"Computer Science Engineering", 4.0}; /* assign structs as in C: brace notation */
+class Stack {   // "class" keyword tips off declass.c
+  int *arr = smrtmalloc(sizeof(int) * 10); // "smrtmalloc" via smrtptr.h handles freeing
+  int len;      // empty member values default 0
+  int max = 10; // all "Stack" objects will now default to "max" = 10
 
   // note that class methods can refer to their class' members & other methods
   // without any prefixes, as declass.c will automatically detect which class
   // object is invoking the method & implement the appropriate operations.
-  
-  void assignName(char *fname) {  // a class "method"
-    copy_fcnPtr(fullname, fname); // invokes local 'copy_fcnPtr' & 'fullname' members declared above
-  }
-  void assignGpa(float grade) { grades.gpa = grade; } // access member struct variables
-  void assignDeansList(bool top10Pct) { deansList = top10Pct; }
-  int getYear() { return schoolYear; }                // return a local member value from method
-  void show() {
-    if(getYear() > 12) {                              // only shows those in college
-      printf("Name: %s, School: %s, Year: %d", fullname, school, schoolYear);
-      printf(" Major: %s, GPA: %.1f/%.1f\n", grades.major, grades.gpa, grades.out_of);
-    }
-  }
-  
-  // note that class objects invoke members/methods by '.' or '->'
-  // notation as per whether they aren't/are a class pointer
 
-  // methods can also create class objects!
-  Student createAStudent(char *name, bool top10Pct, float gpa, int year) {
-    Student methodMadeStudent; 
-    methodMadeStudent.assignName(name);  // invoke object's method to assign a member
-    methodMadeStudent.assignDeansList(top10Pct);
-    methodMadeStudent.assignGpa(gpa);
-    methodMadeStudent.schoolYear = year; // assign an object's member directly
-    return methodMadeStudent;
+  void push(int elt) { // a class "method"
+    if(len == max) {   // "len" and "max" invoke the current class' members
+      max *= max;
+      arr = smrtrealloc(arr, sizeof(int) * max); // via smrtptr.h
+    } else
+      arr[len++] = elt;
   }
-  
-  // note that whereas methods can reference an invoking object's members w/o
-  // prefixes, using '*this' in a method refers to the ENTIRE object. the following
-  // method employs such to swap an invoking object with its method argument:
-  void swap(Student *StudentPtrArg) { // object passed by address to change contents
-    Student temp = *this;
-    *this = *StudentPtrArg; 
-    *StudentPtrArg = temp;
+  bool pop(int *elt) {
+    if(len == 0) return false;
+    *elt = arr[--len];
+    return true;
   }
+  bool top(int *elt) {
+    if(len == 0) return false;
+    *elt = arr[len-1];
+    return true;
+  }
+  void show() { for(int i = 0; i < len; ++i) printf("%d ", arr[i]); printf("\n"); }
+  int size() { return len; } // return a local member value from method
 }
 
 
+// functions (& methods) can also return objects
+Stack mkStackFromArray(int arr[], int length) {
+  Stack localStack;
+  for(int i = 0; i < length; ++i) 
+    localStack.push(arr[i]);
+  return localStack;
+}
+
+
+// note that class objects invoke members/methods by '.' or '->'
+// notation as per whether they aren't/are a class pointer
 
 int main() {
-  Student JordanCR;                                              // declare object
-  JordanCR.copy_fcnPtr(JordanCR.fullname, "Jordan C Randleman"); // invoke members
-  JordanCR.assignGpa(3.9);                                       // invoke methods
-  JordanCR.assignDeansList(true);
-  printf("JordanCR object: ");
-  JordanCR.show();
-  
-  // create another object instance, initialized by a method
-  Student foo = JordanCR.createAStudent("Bar", false, 0.5, 100); 
-  printf("foo object:      ");
-  foo.show();
-  
-  JordanCR.swap(&foo); // swap members between between 'JordanCR' & 'foo' objects
-  printf("JordanCR object: ");
-  JordanCR.show();     // outputs swapped values
-  printf("foo object:      ");
-  foo.show();
-  
+  Stack myStack;   // declare object
+  myStack.push(8); // invoke Stack object's method
+  myStack.push(10);
+  myStack.push(12);
+  printf("Pushed 8, 10, then 12:\n");
+  myStack.show();
+  int x;
+  bool popped = myStack.pop(&x);
+  if(popped) printf("Popped Value: %d\n", x);
+
+  myStack.show();
+  myStack.push(100);
+  printf("Pushing 100:\n");
+  myStack.show();
+  printf("Pushing 888:\n");
+  myStack.push(888);
+  myStack.show();
+
+  int y;
+  bool topped = myStack.top(&y);
+  if(topped) printf("Top Value: %d\n", y);
+  int size = myStack.size(); // invoke Stack object's member in the "printf" below:
+  printf("Stack's size: %d, Stack's current max capacity: %d\n", size, myStack.max);
+
+  // create a "Stack" object via another function
+  int myArray[20] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181};
+  Stack newStack = mkStackFromArray(myArray, 20);
+  printf("\"Stack\" object created by another function:\n");
+  newStack.show();
+
   return 0;
 }
 ```
@@ -163,26 +163,20 @@ int main() {
 ```
 --=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 5 ]=--
 
-CLASS No1, Student:
- L_ MEMBERS: 6
- |  L_ fullname[]
- |  L_ school[]
- |  L_ schoolYear
- |  L_ deansList
- |  L_ *copy_fcnPtr
- |  L_ grades
- L_ METHODS: 7
- | L_ assignName()
- | L_ assignGpa()
- | L_ assignDeansList()
- | L_ getYear()
+CLASS No1, Stack:
+ L_ MEMBERS: 3
+ |  L_ *arr (( ALLOCATED MEMORY ))
+ |  L_ len
+ |  L_ max
+ L_ METHODS: 5
+ | L_ push()
+ | L_ pop()
+ | L_ top()
  | L_ show()
- | L_ createAStudent()
- | L_ swap()
- L_ OBJECTS: 5
-   L_ methodMadeStudent
-   L_ *StudentPtrArg
-   L_ temp
-   L_ JordanCR
-   L_ foo
+ | L_ size()
+ L_ OBJECTS: 4
+   L_ mkStackFromArray
+   L_ localStack
+   L_ myStack
+   L_ newStack
 ```
