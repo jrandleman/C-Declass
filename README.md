@@ -148,8 +148,8 @@ int main() {
   printf("Stack's size: %d, Stack's current max capacity: %d\n", size, myStack.max);
 
   // create a "Stack" object via another function
-  int myArray[20] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181};
-  Stack newStack = mkStackFromArray(myArray, 20);
+  int arr[20] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181};
+  Stack newStack = mkStackFromArray(arr, 20);
   printf("\"Stack\" object created by another function:\n");
   newStack.show();
 
@@ -161,7 +161,7 @@ int main() {
 * _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
   * _refer to the 8 caveats &_ "`declass_SampleExec.c`" _otherwise!_
 ```
---=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 5 ]=--
+--=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 4 ]=--
 
 CLASS No1, Stack:
  L_ MEMBERS: 3
