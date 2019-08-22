@@ -1,62 +1,109 @@
 /* DECLASSIFIED: declass_SampleExec_DECLASS.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
-/************************** GARBAGE COLLECTOR START **************************/
+/****************************** SMRTPTR.H START ******************************/
+// Source: https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer
+#ifndef SMRTPTR_H_
+#define SMRTPTR_H_
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-struct DECLASS__dump_set {
+// garbage collector & smart pointer storage struct
+static struct SMRTPTR_GARBAGE_COLLECTOR {
   long len, max; // current # of ptrs && max capacity
-  void **ptrs;   // unique ptr set to free all ctor alloc's
-} DECLASS__dump = {-1};
-void DECLASS__add_to_dump(void *ptr) { 
+  void **ptrs;   // unique ptr set to free all smrt ptrs
+} SMRTPTR_GC = {-1};
+// invoked by atexit to free all ctor-alloc'd memory
+static void smrtptr_free_all() {
+  int i = 0;
+  for(; i < SMRTPTR_GC.len; ++i) free(SMRTPTR_GC.ptrs[i]);
+  if(SMRTPTR_GC.len > 0) free(SMRTPTR_GC.ptrs);
+  // if(SMRTPTR_GC.len > 0) printf("FREED %ld SMART POINTERS!\n", SMRTPTR_GC.len); // optional
+  SMRTPTR_GC.len = 0;
+}
+// throws invalid allocation errors
+static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {
+  fprintf(stderr, "-:- ERROR: COULDN'T %s MEMORY FOR SMRTPTR.H'S %s -:-\n\n", alloc_type, smrtptr_h_fcn);
+  fprintf(stderr, "-:- FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM -:-\n\n");
+  exit(EXIT_FAILURE); // still frees any ptrs allocated thus far
+}
+// smrtptr stores ptr passed as arg to be freed atexit
+void smrtptr(void *ptr) {
+  // free ptrs atexit
+  atexit(smrtptr_free_all);
   // malloc garbage collector
-  if(DECLASS__dump.len == -1) {
-    DECLASS__dump.ptrs = malloc(sizeof(void *) * 10);
-    if(!DECLASS__dump.ptrs) {
-      fprintf(stderr, "-:- ERROR: COULDN'T MALLOC MEMORY FOR DECLASS.C'S CLASS GARBAGE-COLLECTOR -:-\n");
+  if(SMRTPTR_GC.len == -1) {
+    SMRTPTR_GC.ptrs = malloc(sizeof(void *) * 10);
+    if(!SMRTPTR_GC.ptrs) {
+      fprintf(stderr, "-:- ERROR: COULDN'T MALLOC MEMORY TO INITIALIZE SMRTPTR.H'S GARBAGE COLLECTOR -:-\n\n");
       exit(EXIT_FAILURE);
     }
-    DECLASS__dump.max = 10, DECLASS__dump.len = 0;
+    SMRTPTR_GC.max = 10, SMRTPTR_GC.len = 0;
   }
   // reallocate if "max" ptrs already added
-  if(DECLASS__dump.len == DECLASS__dump.max) { 
-    DECLASS__dump.max *= DECLASS__dump.max;
-    void **temp = realloc(DECLASS__dump.ptrs, sizeof(void *) * DECLASS__dump.max);
-    if(!temp) {
-      fprintf(stderr, "-:- ERROR: COULDN'T REALLOC FOR DECLASS.C'S CLASS GARBAGE-COLLECTOR -:-\n");
-      fprintf(stderr, "-:-    FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM    -:-\n");
-      exit(EXIT_FAILURE); // still frees any ptrs allocated thus far
-    }
-    DECLASS__dump.ptrs = temp;
+  if(SMRTPTR_GC.len == SMRTPTR_GC.max) {
+    SMRTPTR_GC.max *= SMRTPTR_GC.max;
+    void **SMRTPTR_TEMP = realloc(SMRTPTR_GC.ptrs, sizeof(void *) * SMRTPTR_GC.max);
+    if(!SMRTPTR_TEMP) smrtptr_throw_bad_alloc("REALLOC", "GARBAGE COLLECTOR");
+    SMRTPTR_GC.ptrs = SMRTPTR_TEMP;
   }
-  // add ptr to dump if not already present (ensures no double-freeing)
-  for(int i = 0; i < DECLASS__dump.len; ++i) if(DECLASS__dump.ptrs[i] == ptr) return;
-  DECLASS__dump.ptrs[DECLASS__dump.len++] = ptr;
+  // add ptr to SMRTPTR_GC if not already present (ensures no double-freeing)
+  int i = 0;
+  for(; i < SMRTPTR_GC.len; ++i) if(SMRTPTR_GC.ptrs[i] == ptr) return;
+  SMRTPTR_GC.ptrs[SMRTPTR_GC.len++] = ptr;
 }
-void DECLASS__empty_dump() { // invoked by atexit to free all ctor-alloc'd memory
-  for(int i = 0; i < DECLASS__dump.len; ++i) free(DECLASS__dump.ptrs[i]);
-  if(DECLASS__dump.len > 0) free(DECLASS__dump.ptrs);
-  // if(DECLASS__dump.len > 0) printf("FREED %ld DEFAULT ALLOCATIONS!\n", DECLASS__dump.len);
-  DECLASS__dump.len = 0;
+// malloc's a pointer, stores it in the garbage collector, then returns ptr
+void *smrtmalloc(size_t alloc_size) {
+  void *smtr_malloced_ptr = malloc(alloc_size);
+  if(smtr_malloced_ptr == NULL) smrtptr_throw_bad_alloc("MALLOC", "SMRTMALLOC FUNCTION");
+  smrtptr(smtr_malloced_ptr);
+  return smtr_malloced_ptr;
 }
-void DECLASS__free_now(void *ptr) { // user-invoked, prematurely frees ptr from garbage collector
-  for(int i = 0; i < DECLASS__dump.len; ++i) // find ptr in garbage collector
-    if(DECLASS__dump.ptrs[i] == ptr) {
+// calloc's a pointer, stores it in the garbage collector, then returns ptr
+void *smrtcalloc(size_t alloc_num, size_t alloc_size) {
+  void *smtr_calloced_ptr = calloc(alloc_num, alloc_size);
+  if(smtr_calloced_ptr == NULL) smrtptr_throw_bad_alloc("CALLOC", "SMRTCALLOC FUNCTION");
+  smrtptr(smtr_calloced_ptr);
+  return smtr_calloced_ptr;
+}
+// realloc's a pointer, stores it anew in the garbage collector, then returns ptr
+// compatible both "smart" & "dumb" ptrs!
+void *smrtrealloc(void *ptr, size_t realloc_size) {
+  int i = 0;
+  void *smtr_realloced_ptr;
+  // realloc a "smart" ptr already in garbage collector
+  for(; i < SMRTPTR_GC.len; ++i)
+    if(SMRTPTR_GC.ptrs[i] == ptr) {
+      smtr_realloced_ptr = realloc(ptr, realloc_size); // frees ptr in garbage collector
+      if(smtr_realloced_ptr == NULL) smrtptr_throw_bad_alloc("REALLOC", "SMRTREALLOC FUNCTION");
+      SMRTPTR_GC.ptrs[i] = smtr_realloced_ptr; // point freed ptr at realloced address
+      return smtr_realloced_ptr;
+    }
+  // realloc a "dumb" ptr then add it to garbage collector
+  smtr_realloced_ptr = realloc(ptr, realloc_size);
+  if(smtr_realloced_ptr == NULL) smrtptr_throw_bad_alloc("REALLOC", "SMRTREALLOC FUNCTION");
+  smrtptr(smtr_realloced_ptr);
+  return smtr_realloced_ptr;
+}
+// prematurely frees ptr arg prior to atexit (if exists)
+void smrtfree(void *ptr) {
+  int i = 0, j;
+  for(; i < SMRTPTR_GC.len; ++i) // find ptr in garbage collector
+    if(SMRTPTR_GC.ptrs[i] == ptr) {
       free(ptr);
-      for(int j = i; j < DECLASS__dump.len - 1; ++j) // shift ptrs down
-        DECLASS__dump.ptrs[j] = DECLASS__dump.ptrs[j + 1];
-      DECLASS__dump.len--;
+      for(j = i; j < SMRTPTR_GC.len - 1; ++j) // shift ptrs down
+        SMRTPTR_GC.ptrs[j] = SMRTPTR_GC.ptrs[j + 1];
+      SMRTPTR_GC.len--;
       return;
     }
 }
-/*************************** GARBAGE COLLECTOR END ***************************/
+#endif
+/******************************* SMRTPTR.H END *******************************/
 
  
 #include <stdio.h>
 #include <string.h>
 #include <float.h>
 #include <stdlib.h>
-
 
 
 
@@ -87,29 +134,23 @@ typedef struct DECLASS_Student {
 
 } Student;
 Student DECLASS__Student_DFLT(){
-	Student this={malloc(sizeof(char)*50),"SCU",14,0,strcpy,{"Computer Science Engineering", 4.0},};
-	if(this.fullname!=NULL)DECLASS__add_to_dump(this.fullname);
-	atexit(DECLASS__empty_dump);
-	if(this.fullname==NULL){
-		fprintf(stderr, "-:- ERROR ALLOCATING MEMBER OF CLASS NAME \"Student\" -:-\n-:- FREEING ALLOCATED MEMERS THUS FAR AND TERMINATING PROGRAM -:-\n");
-		exit(EXIT_FAILURE);
-	}
+	Student this={smrtmalloc(sizeof(char)*50),"SCU",14,0,strcpy,{"Computer Science Engineering", 4.0},};
 	return this;
 }
 
 /* Student CLASS DEEP COPY FUNCTIONS: */
-Student DECLASS_deepcpy_Student(Student *DECLASS__OLD_Student) {
-	Student this = *DECLASS__OLD_Student;unsigned long DECLASS__MEM_SIZE_Student=0;
-	this.fullname=NULL;this.fullname=malloc(sizeof(char)*50);if(this.fullname!=NULL)DECLASS__add_to_dump(this.fullname);
+Student DECLASS_deepcpy_Student(Student*DECLASS__OLD_Student){
+	Student this=*DECLASS__OLD_Student;unsigned long DECLASS__MEM_SIZE_Student=0;
+	this.fullname=NULL;this.fullname=smrtmalloc(sizeof(char)*50);
 	if(this.fullname==NULL){
-		fprintf(stderr, "\n-:- UNABLE TO MALLOC IN DEEP COPY FOR CLASS \"Student\" -:-\n-:- FREEING ALLOCATED MEMERS THUS FAR AND TERMINATING PROGRAM -:-\n");
+		fprintf(stderr, "\n-:- UNABLE TO MALLOC IN DEEP COPY FOR CLASS \"Student\" -:-\n-:- FREEING SMART POINTERS THUS FAR AND TERMINATING PROGRAM -:-\n");
 		exit(EXIT_FAILURE);
 	}
-	DECLASS__MEM_SIZE_Student=sizeof(DECLASS__OLD_Student->fullname);memmove(this.fullname, DECLASS__OLD_Student->fullname, DECLASS__MEM_SIZE_Student);
+	DECLASS__MEM_SIZE_Student=sizeof(DECLASS__OLD_Student->fullname);memmove(this.fullname,DECLASS__OLD_Student->fullname,DECLASS__MEM_SIZE_Student);
 	return this;
 }
 #define DECLASS__deepcpyARR_Student(DECLASS__NEW_Student, DECLASS__OLD_Student) ({\
-	for(int DECLASS__Student_i = 0; DECLASS__Student_i < (sizeof(DECLASS__OLD_Student)/sizeof(DECLASS__OLD_Student[0])); ++DECLASS__Student_i)\
+	for(int DECLASS__Student_i = 0; DECLASS__Student_i < (sizeof(DECLASS__OLD_Student)/sizeof(DECLASS__OLD_Student[0]));  ++DECLASS__Student_i)\
 		DECLASS__NEW_Student[DECLASS__Student_i] = DECLASS_deepcpy_Student(&DECLASS__OLD_Student[DECLASS__Student_i]);\
 })
 
@@ -167,13 +208,13 @@ College DECLASS__College_DFLT(){
 }
 
 /* College CLASS DEEP COPY FUNCTIONS: */
-College DECLASS_deepcpy_College(College *DECLASS__OLD_College) {
-	College this = *DECLASS__OLD_College;unsigned long DECLASS__MEM_SIZE_College=0;
+College DECLASS_deepcpy_College(College*DECLASS__OLD_College){
+	College this=*DECLASS__OLD_College;unsigned long DECLASS__MEM_SIZE_College=0;
 	 DECLASS__deepcpyARR_Student(this.body, DECLASS__OLD_College->body);
 	return this;
 }
 #define DECLASS__deepcpyARR_College(DECLASS__NEW_College, DECLASS__OLD_College) ({\
-	for(int DECLASS__College_i = 0; DECLASS__College_i < (sizeof(DECLASS__OLD_College)/sizeof(DECLASS__OLD_College[0])); ++DECLASS__College_i)\
+	for(int DECLASS__College_i = 0; DECLASS__College_i < (sizeof(DECLASS__OLD_College)/sizeof(DECLASS__OLD_College[0]));  ++DECLASS__College_i)\
 		DECLASS__NEW_College[DECLASS__College_i] = DECLASS_deepcpy_College(&DECLASS__OLD_College[DECLASS__College_i]);\
 })
 
@@ -228,13 +269,13 @@ Region DECLASS__Region_DFLT(){
 }
 
 /* Region CLASS DEEP COPY FUNCTIONS: */
-Region DECLASS_deepcpy_Region(Region *DECLASS__OLD_Region) {
-	Region this = *DECLASS__OLD_Region;unsigned long DECLASS__MEM_SIZE_Region=0;
+Region DECLASS_deepcpy_Region(Region*DECLASS__OLD_Region){
+	Region this=*DECLASS__OLD_Region;unsigned long DECLASS__MEM_SIZE_Region=0;
 	 DECLASS__deepcpyARR_College(this.schools, DECLASS__OLD_Region->schools);
 	return this;
 }
 #define DECLASS__deepcpyARR_Region(DECLASS__NEW_Region, DECLASS__OLD_Region) ({\
-	for(int DECLASS__Region_i = 0; DECLASS__Region_i < (sizeof(DECLASS__OLD_Region)/sizeof(DECLASS__OLD_Region[0])); ++DECLASS__Region_i)\
+	for(int DECLASS__Region_i = 0; DECLASS__Region_i < (sizeof(DECLASS__OLD_Region)/sizeof(DECLASS__OLD_Region[0]));  ++DECLASS__Region_i)\
 		DECLASS__NEW_Region[DECLASS__Region_i] = DECLASS_deepcpy_Region(&DECLASS__OLD_Region[DECLASS__Region_i]);\
 })
 
@@ -389,16 +430,6 @@ int main() {
   DECLASS_Region_setRegionName("San Francisco", &SF);
   printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
   DECLASS_Region_show(&SF);
-
-
-
-
-
-  Student RandomStudent; DECLASS__Student_CTOR(RandomStudent);
-  College RandomCollege; DECLASS__College_CTOR(RandomCollege);
-  DECLASS__free_now(RandomStudent.fullname);
-
-  DECLASS__free_now(RandomCollege.body[0].fullname);
 
   return 0;
 }
