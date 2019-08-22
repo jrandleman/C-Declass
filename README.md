@@ -1,6 +1,6 @@
-# C-Declassify
+# Declass-C
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
-#### **_Member Default Values & Allocation, Methods, Object Arrays/Pointers/Containment, and more!_**
+#### **_Member Default Values & Allocation, Methods, Object Arrays/Pointers/Containment, Smart Pointers, & more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -16,7 +16,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## C-Declassify's 8 Caveats & 2 Notes, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
-* _**Note**: the 2 notes pertain to default memory allocation values & the_ "`.deepcpy()`" _/_ "`.freenow()`" _methods_
+* _**Note**: the 2 notes pertain to_ "`smrtptr.h`"_'s default inclusion and the_ "`.deepcpy()`" _method_
 ```c
 /*****************************************************************************
  *                       -:- DECLASS.C 8 CAVEATS -:-                        *
@@ -45,35 +45,33 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *                           an interface for c3                            *
  *****************************************************************************
  *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
- *  *(1) W/O "#define DECLASS_NFREE", (C/M)ALLOC DEFAULT VALUES ARE FREED   *
- *       AUTOMATICALLY ATEXIT BY GARBAGE COLLECTOR (USER SHOULD NEVER FREE) *
- *       * to free a ptr prior "atexit()", classes have ".freenow()" method *
- *         by default to free a ptr passed as an argument immmediately from *
- *         the garbage collector, UNLESS "#define DECLASS_NFREE" is enabled *
- *   (2) W/O "#define DECLASS_NDEEP", ALL CLASSES HAVE THE ".deepcpy()"     *
- *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEM-ALLOC8ED *
- *       DEFAULT VALUES NEWLY ALLOCATED (ALSO FREED BY NOTE *(1) IF ACTIVE) *
- *       * w/o mem-alloc8ed default vals ".deepcpy()" just returns same obj *
+ *   (1) W/O "#define DECLASS_NSMRTPTR", THE SMRTPTR.H LIBRARY IS INCLUDED, *
+ *       W/ IMPROVED MALLOC/CALLOC/REALLOC/FREE FCNS & GARBAGE COLLECTION   *
+ *       * "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"     *
+ *   (2) W/O "#define DECLASS_NDEEPCPY", ALL CLASSES HAVE THE ".deepcpy()"  *
+ *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEMORY       *
+ *       ALLOCATED DEFAULT VALUES ALLOCATED ANEW                            *
+ *       * ".deepcpy()" allocates members as defined, "smrt" or otherwise   *
  *****************************************************************************/
 ```
 --------------
 ## Disabling Default Methods & Features:
-### Garbage Collector/Autonomous Freeing:
-* _Garbage collection is enabled by default to free default memory allocation values for members via_ "`atexit()`" _, with a universal_ "`.freenow()`" _method also provided for users to immediately free a ptr in the garbage collector_
-* _Disable both the garbage collector &_ '`.freenow()`' _method by including the following:_ 
-  * **WARNING:** _User must now free default mem-alloc'd member values, INCLUDING those of contained objects_
+### Smart Pointer Library:
+* _Declass-C also enables my_ "`smrtptr.h`" _library by default to improve upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _functions by automating garbage collection (with each function prefixed by "smrt")_
+* _See more about_ "`smrtptr.h`" _by checking it out in my [C-Library](https://github.com/jrandleman/C-Libraries) repository or [clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
+* _Disable_ "`smrtptr.h`"_'s default inclusion by including the following:_ 
 ```c
-#define DECLASS_NFREE
+#define DECLASS_NSMRTPTR
 ```
 ### Universal Deep Copying Method:
-* _The_ '`.deepcpy()`' _method is also provided for all classes, returning a copy of the invoking object with their default mem-alloc'd member values allocated their own block of memory -- freed via garbage collector if not disabled_
+* _The_ '`.deepcpy()`' _method is also provided for all classes, returning a copy of the invoking object with default mem-alloc'd member values allocated their own block of memory exactly as the default was ("smrt" or otherwise)_
 * _Disable the_ '`.deepcpy()`' _method by including the following:_ 
 ```c
-#define DECLASS_NDEEP
+#define DECLASS_NDEEPCPY
 ```
 --------------
 ## A Simple Sample Class:
-* _**Note**: modified from_ "`declass_SampleExec.c`"_, see whole file to learn of object containment, arrays, pointers, default memory allocation, autonomous freeing, universal_ "`.deepcpy()`" _/_ "`.freenow()`" _methods, & more!_
+* _**Note**: see_ "`declass_SampleExec.c`"_, to learn more about object containment, arrays, pointers, default memory allocation, autonomous freeing via smrtptr.h, the universal_ "`.deepcpy()`" _method, & more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
