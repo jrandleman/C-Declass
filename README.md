@@ -75,8 +75,6 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
 
 class Stack {   // "class" keyword tips off declass.c
