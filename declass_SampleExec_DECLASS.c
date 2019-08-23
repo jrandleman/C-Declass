@@ -102,9 +102,7 @@ void smrtfree(void *ptr) {
  
 #include <stdio.h>
 #include <string.h>
-#include <float.h>
 #include <stdlib.h>
-
 
 
 
@@ -117,19 +115,24 @@ void smrtfree(void *ptr) {
   for(int DECLASS__Student_IDX=0;DECLASS__Student_IDX<(sizeof(DECLASS_ARR)/sizeof(DECLASS_ARR[0]));++DECLASS__Student_IDX)\
     DECLASS__Student_CTOR(DECLASS_ARR[DECLASS__Student_IDX]);\
 })
+#define DECLASS__Student_USERCTOR_ARR(DECLASS_ARR, ...) ({\
+  for(int DECLASS__Student_USERCTOR_IDX=0;DECLASS__Student_USERCTOR_IDX<(sizeof(DECLASS_ARR)/sizeof(DECLASS_ARR[0]));++DECLASS__Student_USERCTOR_IDX)\
+    DECLASS_Student_(__VA_ARGS__, &DECLASS_ARR[DECLASS__Student_USERCTOR_IDX]);\
+})
 
 /* Student CLASS CONVERTED TO STRUCT: */
 typedef struct DECLASS_Student {
-  char *fullname ;
-  char school[15] ;
-  int year ;
+  char *fullname;
+  char school[15];
+  int year;
   long studentId;
-  char *(*copy_fcnPtr)() ;
+  char *(*copy_fcnPtr)();
   struct grade_info {
     char major[50];
     float out_of;
     float gpa;
-  } grades ;
+  } grades;
+
 
 
 } Student;
@@ -137,22 +140,6 @@ Student DECLASS__Student_DFLT(){
 	Student this={smrtmalloc(sizeof(char)*50),"SCU",14,0,strcpy,{"Computer Science Engineering", 4.0},};
 	return this;
 }
-
-/* Student CLASS DEEP COPY FUNCTIONS: */
-Student DECLASS_deepcpy_Student(Student*DECLASS__OLD_Student){
-	Student this=*DECLASS__OLD_Student;unsigned long DECLASS__MEM_SIZE_Student=0;
-	this.fullname=NULL;this.fullname=smrtmalloc(sizeof(char)*50);
-	if(this.fullname==NULL){
-		fprintf(stderr, "\n-:- UNABLE TO MALLOC IN DEEP COPY FOR CLASS \"Student\" -:-\n-:- FREEING SMART POINTERS THUS FAR AND TERMINATING PROGRAM -:-\n");
-		exit(EXIT_FAILURE);
-	}
-	DECLASS__MEM_SIZE_Student=sizeof(DECLASS__OLD_Student->fullname);memmove(this.fullname,DECLASS__OLD_Student->fullname,DECLASS__MEM_SIZE_Student);
-	return this;
-}
-#define DECLASS__deepcpyARR_Student(DECLASS__NEW_Student, DECLASS__OLD_Student) ({\
-	for(int DECLASS__Student_i = 0; DECLASS__Student_i < (sizeof(DECLASS__OLD_Student)/sizeof(DECLASS__OLD_Student[0]));  ++DECLASS__Student_i)\
-		DECLASS__NEW_Student[DECLASS__Student_i] = DECLASS_deepcpy_Student(&DECLASS__OLD_Student[DECLASS__Student_i]);\
-})
 
 /* Student CLASS METHODS SPLICED OUT: */
   void DECLASS_Student_assignName(char *fname, Student *this) {
@@ -170,6 +157,12 @@ Student DECLASS_deepcpy_Student(Student*DECLASS__OLD_Student){
       printf(" Major: %s, GPA: %.1f/%.1f\n", this->grades.major, this->grades.gpa, this->grades.out_of);
     }
   }
+  Student DECLASS_Student_(char *userName, long id, float gpa, Student *this) {
+    DECLASS_Student_assignName(userName, this);
+    DECLASS_Student_assignId(id, this);
+    DECLASS_Student_assignGpa(gpa, this);
+  	return *this;
+	}
   Student DECLASS_Student_createAStudent(char *name, long id, float gpa, Student *this) {
     Student methodMadeStudent; DECLASS__Student_CTOR(methodMadeStudent);
     DECLASS_Student_assignName(name, &methodMadeStudent);
@@ -199,24 +192,13 @@ typedef struct DECLASS_College {
   Student body[10];
   char name[20];
   int foundingYear;
-  char state[3] ;
+  char state[3];
 
 } College;
 College DECLASS__College_DFLT(){
 	College this={{0},{0},0,"CA",};
 	return this;
 }
-
-/* College CLASS DEEP COPY FUNCTIONS: */
-College DECLASS_deepcpy_College(College*DECLASS__OLD_College){
-	College this=*DECLASS__OLD_College;unsigned long DECLASS__MEM_SIZE_College=0;
-	 DECLASS__deepcpyARR_Student(this.body, DECLASS__OLD_College->body);
-	return this;
-}
-#define DECLASS__deepcpyARR_College(DECLASS__NEW_College, DECLASS__OLD_College) ({\
-	for(int DECLASS__College_i = 0; DECLASS__College_i < (sizeof(DECLASS__OLD_College)/sizeof(DECLASS__OLD_College[0]));  ++DECLASS__College_i)\
-		DECLASS__NEW_College[DECLASS__College_i] = DECLASS_deepcpy_College(&DECLASS__OLD_College[DECLASS__College_i]);\
-})
 
 /* College CLASS METHODS SPLICED OUT: */
   void DECLASS_College_addName(char *uniName, College *this) { strcpy(this->name, uniName); }
@@ -251,7 +233,11 @@ College DECLASS_deepcpy_College(College*DECLASS__OLD_College){
 /******************************** CLASS START ********************************/
 /* Region CLASS DEFAULT VALUE MACRO CONSTRUCTORS: */
 #define DECLASS__Region_CTOR(DECLASS_THIS) ({DECLASS_THIS = DECLASS__Region_DFLT();\
-	DECLASS__College_ARR(DECLASS_THIS.schools);})
+	DECLASS__College_ARR(DECLASS_THIS.schools);\
+	DECLASS__Student_CTOR(DECLASS_THIS.topStudent);\
+	DECLASS_Student_("Stephen Prata", 12121212, 4.0, &DECLASS_THIS.topStudent);\
+	DECLASS__Student_ARR(DECLASS_THIS.second3rd4thBestStudents);\
+	DECLASS__Student_USERCTOR_ARR(DECLASS_THIS.second3rd4thBestStudents, "John Doe", 11111110, 8.0);})
 #define DECLASS__Region_ARR(DECLASS_ARR) ({\
   for(int DECLASS__Region_IDX=0;DECLASS__Region_IDX<(sizeof(DECLASS_ARR)/sizeof(DECLASS_ARR[0]));++DECLASS__Region_IDX)\
     DECLASS__Region_CTOR(DECLASS_ARR[DECLASS__Region_IDX]);\
@@ -262,22 +248,13 @@ typedef struct DECLASS_Region {
   College schools[2];
   int totalSchools;
   char regionName[20];
+  Student topStudent;
+  Student second3rd4thBestStudents[3];
 } Region;
 Region DECLASS__Region_DFLT(){
-	Region this={{0},0,{0},};
+	Region this={{0},0,{0},{0},{0},};
 	return this;
 }
-
-/* Region CLASS DEEP COPY FUNCTIONS: */
-Region DECLASS_deepcpy_Region(Region*DECLASS__OLD_Region){
-	Region this=*DECLASS__OLD_Region;unsigned long DECLASS__MEM_SIZE_Region=0;
-	 DECLASS__deepcpyARR_College(this.schools, DECLASS__OLD_Region->schools);
-	return this;
-}
-#define DECLASS__deepcpyARR_Region(DECLASS__NEW_Region, DECLASS__OLD_Region) ({\
-	for(int DECLASS__Region_i = 0; DECLASS__Region_i < (sizeof(DECLASS__OLD_Region)/sizeof(DECLASS__OLD_Region[0]));  ++DECLASS__Region_i)\
-		DECLASS__NEW_Region[DECLASS__Region_i] = DECLASS_deepcpy_Region(&DECLASS__OLD_Region[DECLASS__Region_i]);\
-})
 
 /* Region CLASS METHODS SPLICED OUT: */
   void DECLASS_Region_setRegionName(char *name, Region *this) { strcpy(this->regionName, name); }
@@ -295,6 +272,15 @@ Region DECLASS_deepcpy_Region(Region*DECLASS__OLD_Region){
     for(int i = 0; i < this->totalSchools; ++i) {
       printf("School No%d:\n", i + 1);
       DECLASS_College_show(&(this->schools[i]));
+    }
+  }
+  void DECLASS_Region_showTopStudents(Region *this) {
+    printf("\tThe %s Region's Top Student:\n\t\t", this->regionName);
+    DECLASS_Student_show(&(this->topStudent));
+    printf("\tThe Next 3 Runner-Ups:\n");
+    for(int i = 0; i < 3; ++i) {
+      printf("\t\t");
+      DECLASS_Student_show(&(this->second3rd4thBestStudents[i]));
     }
   }
 /********************************* CLASS END *********************************/
@@ -323,6 +309,7 @@ int main() {
 
 
   printf("Working with a single \"Student\" object:\n");
+
   Student jordanCR; DECLASS__Student_CTOR(jordanCR);
   DECLASS_Student_assignId(1524026, &jordanCR);
   long myId = DECLASS_Student_getId(&jordanCR);
@@ -335,7 +322,15 @@ int main() {
 
 
 
-  printf("\nWorking with an array of 10 \"Student\" objects:\n");
+  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
+
+  Student koenR; DECLASS__Student_CTOR(koenR); DECLASS_Student_("Koen Randleman", 1122334, 4.0, &koenR);
+  printf("\t");
+  DECLASS_Student_show(&koenR);
+
+
+
+  printf("\nWorking with an array of 6 \"Student\" objects:\n");
   Student class[6]; DECLASS__Student_ARR(class);
   char names[6][20] = {"Cameron", "Sidd", "Austin", "Sabiq", "Tobias", "Gordon"};
   for(int i = 0; i < 6; ++i) {
@@ -346,6 +341,18 @@ int main() {
   for(int i = 0; i < 6; ++i) {
     printf("\t");
     DECLASS_Student_show(&class[i]);
+  }
+
+
+
+  printf("\nWorking with a constructor to initialize an array of 6 \"Student\" objects:\n");
+
+
+
+  Student group[6]; DECLASS__Student_ARR(group); DECLASS__Student_USERCTOR_ARR(group, "group_student", 1111111, 3.0);
+  for(int i = 0; i < 6; ++i) {
+    printf("\t");
+    DECLASS_Student_show(&group[i]);
   }
 
 
@@ -379,21 +386,22 @@ int main() {
 
 
 
-  printf("\nHaving a function make & return a College object:\n");
+  printf("\nHaving a function make & return a \"College\" object:\n");
 
 
   College SantaClara = createCollege("Santa Clara", 1851);
-  printf("\tSantaClara College object Name: %s, State: %s, Year Founded: %d\n", SantaClara.name, SantaClara.state, SantaClara.foundingYear);
+  printf("\tSantaClara \"College\" object Name: %s, State: %s, Year Founded: %d\n", SantaClara.name, SantaClara.state, SantaClara.foundingYear);
 
 
 
   Student willAR = DECLASS_Student_createAStudent("Will Randleman", 1524027, 4.0, &jordanCR);
-  printf("\nHaving a method make & return a Student object:\n");
+  printf("\nHaving a method make & return a \"Student\" object:\n");
   printf("\t");
   DECLASS_Student_show(&willAR);
 
 
-  printf("\nHaving a method swap 2 Student objects via '*this' pointer in method:\n");
+
+  printf("\nHaving a method swap 2 \"Student\" objects via '*this' pointer in method:\n");
   Student jowiR; DECLASS__Student_CTOR(jowiR);
   DECLASS_Student_assignName("Jowi Randleman", &jowiR);
   DECLASS_Student_assignId(5052009, &jowiR);
@@ -410,7 +418,7 @@ int main() {
 
 
 
-  printf("\nMulti-Layer Object Containment - Region object containing a College object array each containing a Student object array:\n");
+  printf("\nMulti-Layer Object Containment - \"Region\" object containing a \"College\" object array each containing a \"Student\" object array:\n");
   Region SiliconValley; DECLASS__Region_CTOR(SiliconValley);
   DECLASS_Region_setRegionName("Silicon Valley", &SiliconValley);
   DECLASS_Region_addSchool(Scu, &SiliconValley);
@@ -424,12 +432,8 @@ int main() {
 
 
 
-
-
-  Region SF = DECLASS_deepcpy_Region(&SiliconValley);
-  DECLASS_Region_setRegionName("San Francisco", &SF);
-  printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
-  DECLASS_Region_show(&SF);
+  printf("\nInitializing a \"Region\" object's contained \"Student\" object & object array w/ a constructor:\n");
+  DECLASS_Region_showTopStudents(&SiliconValley);
 
   return 0;
 }
