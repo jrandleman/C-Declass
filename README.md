@@ -1,6 +1,6 @@
 # Declass-C
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
-#### **_Member Default Values & Allocation, Methods, Object Arrays/Pointers/Containment, Smart Pointers, and more!_**
+#### **_Ctors, Member Default Values/Allocation, Methods, Object Arrays/Pointers/Containment, Smart Ptrs, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -14,9 +14,9 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 --------------
-## C-Declassify's 8 Caveats & 2 Notes, Straight From declass.c:
+## C-Declassify's 8 Caveats & 3 Notes, Straight From declass.c:
 * _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
-* _**Note**: the 2 notes pertain to_ "`smrtptr.h`"_'s default inclusion and the_ "`.deepcpy()`" _method_
+* _**Note**: the 3 notes pertain to_ "`smrtptr.h`"_'s default inclusion and how to use class constructors_
 ```c
 /*****************************************************************************
  *                       -:- DECLASS.C 8 CAVEATS -:-                        *
@@ -24,54 +24,48 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
  *   (4) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
- *       * IE NOT:      'myClassName c, e;'                                 *
- *       * ALTERNATIVE: 'myClassName c; <press enter> myClassName e;'       *
+ *       (*) IE NOT:      'className c, e;'                                 *
+ *       (*) ALTERNATIVE: 'className c; <press enter> className e;'         *
  *   (5) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
- *       * IE NOT:      'someObj.method1(someObj.method2());'               *
- *       * ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'    *
+ *       (*) IE NOT:      'someObj.method1(someObj.method2());'             *
+ *       (*) ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'  *
  *   (6) CLASS ARRAYS RECIEVED AS ARGS MUST BE DENOTED WITH '[]' NOT '*':   *
- *       * IE NOT:     'func(className *classArr){...}'                     *
- *       * ALTERNATIVE:'func(className classArr[]){...}'                    *
+ *       (*) IE NOT:      'func(className *classArr){...}'                  *
+ *       (*) ALTERNATIVE: 'func(className classArr[]){...}'                 *
  *   (7) NO POINTER TO ARRAY OF OBJECTS:                                    *
- *       * IE NOT:      className (*ptrToArrObj)[10];                       *
- *       * ALTERNATIVE: pointer to an object w/ an array of objects member  *
+ *       (*) IE NOT:      className (*ptrToArrObj)[10];                     *
+ *       (*) ALTERNATIVE: pointer to an object w/ array of objects member   *
  *   (8) CONTAINMENT, NOT INHERITANCE: CLASSES CAN ONLY ACCESS MEMBERS &    *
  *       METHODS OF THEIR OWN IMMEDIATE MEMBER CLASS OBJECTS:               *
- *       * IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.      *
- *             c3 can access c2 members and c2 ca access c1 members,        *
- *             but c3 CANNOT access c1 members                              *
- *       * ALTERNATIVES: (1) simply include a c1 object as a member in c3   *
- *                       (2) create methods in c2 invoking c1 methods as    *
- *                           an interface for c3                            *
+ *       (*) IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.    *
+ *               c3 can access c2 members and c2 ca access c1 members,      *
+ *               but c3 CANNOT access c1 members                            *
+ *       (*) ALTERNATIVES: (1) simply include a c1 object as a member in c3 *
+ *                         (2) create methods in c2 invoking c1 methods as  *
+ *                             an interface for c3                          *
  *****************************************************************************
- *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
+ *                         -:- DECLASS.C NOTES -:-                          *
  *   (1) W/O "#define DECLASS_NSMRTPTR", THE SMRTPTR.H LIBRARY IS INCLUDED, *
  *       W/ IMPROVED MALLOC/CALLOC/REALLOC/FREE FCNS & GARBAGE COLLECTION   *
- *       * "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"     *
- *   (2) W/O "#define DECLASS_NDEEPCPY", ALL CLASSES HAVE THE ".deepcpy()"  *
- *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEMORY       *
- *       ALLOCATED DEFAULT VALUES ALLOCATED ANEW                            *
- *       * ".deepcpy()" allocates members as defined, "smrt" or otherwise   *
+ *       (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"   *
+ *   (2) DENOTE CONSTRUCTORS AS TYPLESS METHODS W/ SAME NAME AS ITS CLASS   *
+ *   (3) DELCARING OBJECTS => CONSTRUCTORS (CTORS) & DEFAULT (DFLT) VALUES: *
+ *       (*) only dflt values: "className objectName;"                      *
+ *       (*) dflts & ctor(if defined): "className objectName(ctor_args);"   *
+ *       (*) dflts & ctor for an array: "className objectName[size](args);" *
  *****************************************************************************/
 ```
 --------------
-## Disabling Default Methods & Features:
-### Smart Pointer Library:
+## Disabling the Smart Pointer Library:
 * _Declass-C also enables my_ "`smrtptr.h`" _library by default to improve upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _functions by automating garbage collection (with each function prefixed by "smrt")_
-* _See more about_ "`smrtptr.h`" _by checking it out in my [C-Library](https://github.com/jrandleman/C-Libraries) repository or [clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
+* _Learn more about_ "`smrtptr.h`" _by checking it out in [my C-Library repository](https://github.com/jrandleman/C-Libraries) or [by clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
 * _Disable_ "`smrtptr.h`"_'s default inclusion by including the following:_ 
 ```c
 #define DECLASS_NSMRTPTR
 ```
-### Universal Deep Copying Method:
-* _The_ "`.deepcpy()`" _method is also provided for all classes, returning a copy of the invoking object with default mem-alloc'd member values allocated their own block of memory exactly as the default was ("smrt" or otherwise)_
-* _Disable the_ "`.deepcpy()`" _method by including the following:_ 
-```c
-#define DECLASS_NDEEPCPY
-```
 --------------
 ## A Simple Sample Stack Class:
-* _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h autonomous freeing, universal_ "`.deepcpy()`" _method, "this" ptr, and more!_
+* _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object ctors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h's autonomous freeing, using "this" ptr in methods, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
@@ -105,24 +99,27 @@ class Stack {   // "class" keyword tips off declass.c
   }
   void show() { for(int i = 0; i < len; ++i) printf("%d ", arr[i]); printf("\n"); }
   int size() { return len; } // return a local member value from method
-}
 
+  // create class constructors by making a "typeless" method w/ the same name of the class
+  // -- gets invoked at every object delcaration so long as "(<args>)" are provided,
+  // otherwise object only get default values without calling its constructor.
 
-// functions (& methods) can also return objects
-Stack mkStackFromArray(int arr[], int length) {
-  Stack localStack;
-  for(int i = 0; i < length; ++i) 
-    localStack.push(arr[i]);
-  return localStack;
+  Stack(int array[], int length) {
+    for(int i = 0; i < length; ++i) 
+      push(array[i]);
+  }
 }
 
 
 // note that class objects invoke members/methods by '.' or '->'
 // notation as per whether they aren't/are a class pointer
 
+
 int main() {
+  // Single "Stack" object initialized with default values
+  printf("Working with a single \"Stack\" object initializaed with its default values:\n");
   Stack myStack;   // declare object
-  myStack.push(8); // invoke Stack object's method
+  myStack.push(8); // invoke "Stack" object's method
   myStack.push(10);
   myStack.push(12);
   printf("Pushed 8, 10, then 12:\n");
@@ -145,10 +142,12 @@ int main() {
   int size = myStack.size(); // invoke Stack object's member in the "printf" below:
   printf("Stack's size: %d, Stack's current max capacity: %d\n", size, myStack.max);
 
-  // create a "Stack" object via another function
+
+  // Single "Stack" object initialized with default values & constructor
+  printf("\nInitializing a \"Stack\" object via its default values & class constructor:\n");
   int arr[20] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181};
-  Stack newStack = mkStackFromArray(arr, 20);
-  printf("\"Stack\" object created by another function:\n");
+  Stack newStack(arr, 20);
+  printf("\"Stack\" object made with its class constructor:\n");
   newStack.show();
 
   return 0;
@@ -159,22 +158,21 @@ int main() {
 * _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
   * _refer to the 8 caveats &_ "`declass_SampleExec.c`" _otherwise!_
 ```
---=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 4 ]=--
+--=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 2 ]=--
 
 CLASS No1, Stack:
  L_ MEMBERS: 3
  |  L_ *arr (( ALLOCATED MEMORY ))
  |  L_ len
  |  L_ max
- L_ METHODS: 5
+ L_ METHODS: 6
  | L_ push()
  | L_ pop()
  | L_ top()
  | L_ show()
  | L_ size()
- L_ OBJECTS: 4
-   L_ mkStackFromArray
-   L_ localStack
+ | L_ Stack() (( CONSTRUCTOR ))
+ L_ OBJECTS: 2
    L_ myStack
    L_ newStack
 ```
