@@ -1,11 +1,9 @@
 // Author: Jordan Randleman - Sample Implementation of Classes for 'declass.c'
 #include <stdio.h>
 #include <string.h>
-#include <float.h>
 #include <stdlib.h>
-// declass.c - Specific Memory Handling Flags
+// declass.c - Smart Pointers Library "Prevent-Default-Inclusion" Flag
 // #define DECLASS_NSMRTPTR // disables default inclusion of "smrtptr.h" library for garbage collection
-// #define DECLASS_NDEEPCPY // disables default usniversal inclusion of ".deepcpy()" class method
 
 /*****************************************************************************
  *                       -:- DECLASS.C 8 CAVEATS -:-                        *
@@ -13,34 +11,35 @@
  *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
  *   (4) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
- *       * IE NOT:      'myClassName c, e;'                                 *
- *       * ALTERNATIVE: 'myClassName c; <press enter> myClassName e;'       *
+ *       (*) IE NOT:      'className c, e;'                                 *
+ *       (*) ALTERNATIVE: 'className c; <press enter> className e;'         *
  *   (5) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
- *       * IE NOT:      'someObj.method1(someObj.method2());'               *
- *       * ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'    *
+ *       (*) IE NOT:      'someObj.method1(someObj.method2());'             *
+ *       (*) ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'  *
  *   (6) CLASS ARRAYS RECIEVED AS ARGS MUST BE DENOTED WITH '[]' NOT '*':   *
- *       * IE NOT:     'func(className *classArr){...}'                     *
- *       * ALTERNATIVE:'func(className classArr[]){...}'                    *
+ *       (*) IE NOT:      'func(className *classArr){...}'                  *
+ *       (*) ALTERNATIVE: 'func(className classArr[]){...}'                 *
  *   (7) NO POINTER TO ARRAY OF OBJECTS:                                    *
- *       * IE NOT:      className (*ptrToArrObj)[10];                       *
- *       * ALTERNATIVE: pointer to an object w/ an array of objects member  *
+ *       (*) IE NOT:      className (*ptrToArrObj)[10];                     *
+ *       (*) ALTERNATIVE: pointer to an object w/ array of objects member   *
  *   (8) CONTAINMENT, NOT INHERITANCE: CLASSES CAN ONLY ACCESS MEMBERS &    *
  *       METHODS OF THEIR OWN IMMEDIATE MEMBER CLASS OBJECTS:               *
- *       * IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.      *
- *             c3 can access c2 members and c2 ca access c1 members,        *
- *             but c3 CANNOT access c1 members                              *
- *       * ALTERNATIVES: (1) simply include a c1 object as a member in c3   *
- *                       (2) create methods in c2 invoking c1 methods as    *
- *                           an interface for c3                            *
+ *       (*) IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.    *
+ *               c3 can access c2 members and c2 ca access c1 members,      *
+ *               but c3 CANNOT access c1 members                            *
+ *       (*) ALTERNATIVES: (1) simply include a c1 object as a member in c3 *
+ *                         (2) create methods in c2 invoking c1 methods as  *
+ *                             an interface for c3                          *
  *****************************************************************************
- *                -:- DECLASS.C MEMORY-ALLOCATION NOTES -:-                 *
+ *                         -:- DECLASS.C NOTES -:-                          *
  *   (1) W/O "#define DECLASS_NSMRTPTR", THE SMRTPTR.H LIBRARY IS INCLUDED, *
  *       W/ IMPROVED MALLOC/CALLOC/REALLOC/FREE FCNS & GARBAGE COLLECTION   *
- *       * "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"     *
- *   (2) W/O "#define DECLASS_NDEEPCPY", ALL CLASSES HAVE THE ".deepcpy()"  *
- *       METHOD RETURNING A COPY OF THE INVOKING OBJECT W/ ANY MEMORY       *
- *       ALLOCATED DEFAULT VALUES ALLOCATED ANEW                            *
- *       * ".deepcpy()" allocates members as defined, "smrt" or otherwise   *
+ *       (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"   *
+ *   (2) DENOTE CONSTRUCTORS AS TYPLESS METHODS W/ SAME NAME AS ITS CLASS   *
+ *   (3) DELCARING OBJECTS => CONSTRUCTORS (CTORS) & DEFAULT (DFLT) VALUES: *
+ *       (*) only dflt values: "className objectName;"                      *
+ *       (*) dflts & ctor(if defined): "className objectName(ctor_args);"   *
+ *       (*) dflts & ctor for an array: "className objectName[size](args);" *
  *****************************************************************************/
 
 class Student {
@@ -75,6 +74,15 @@ class Student {
       printf("Name: %s, School: %s, Year: %d, id: %ld", fullname, school, year, studentId);
       printf(" Major: %s, GPA: %.1f/%.1f\n", grades.major, grades.gpa, grades.out_of);
     }
+  }
+
+  // create class constructors by making a "typeless" method w/ the same same of the class
+  // -- gets invoked at every object delcaration so long as "(<args>)" are provided,
+  // otherwise object only get default values w/o calling its constructor
+  Student(char *userName, long id, float gpa) {
+    assignName(userName);
+    assignId(id);
+    assignGpa(gpa);
   }
 
   // method to create a new object
@@ -136,6 +144,12 @@ class Region {
   int totalSchools; // class members default to 0
   char regionName[20];
 
+  // note that constructors can be used to initialize contained
+  // objects with the same notation as with any other context:
+  // see the main function below for more examples
+  Student topStudent("Stephen Prata", 12121212, 4.0);
+  Student second3rd4thBestStudents[3]("John Doe", 11111110, 8.0);
+
   void setRegionName(char *name) { strcpy(regionName, name); }
   void addSchool(College school) {
     if(totalSchools == 2) {
@@ -148,7 +162,8 @@ class Region {
      * immediate 'Student' member (so valid by caveat 8). If this were outside of the
      * method and invoked as "RegionObj.schools[0].body[0].assignName("CAMERON")",
      * caveat 8 would be violated & cause undefined behavior since the outermost
-     * object class name 'Region' has no immediate 'Student' member to invoke */ 
+     * object class name 'Region' is 2 layers rmvd (no immediate access) from its
+     * "College" array's "Student" array member */ 
     schools[totalSchools-1].body[totalSchools - totalSchools].assignName("CAMERON"); 
   }
   void show() {
@@ -156,6 +171,15 @@ class Region {
     for(int i = 0; i < totalSchools; ++i) {
       printf("School No%d:\n", i + 1);
       schools[i].show();
+    }
+  }
+  void showTopStudents() {
+    printf("\tThe %s Region's Top Student:\n\t\t", regionName);
+    topStudent.show();
+    printf("\tThe Next 3 Runner-Ups:\n");
+    for(int i = 0; i < 3; ++i) {
+      printf("\t\t");
+      second3rd4thBestStudents[i].show();
     }
   }
 }
@@ -184,7 +208,8 @@ int main() {
 
   // Single object
   printf("Working with a single \"Student\" object:\n");
-  Student jordanCR;
+  // note that no parenthesis means no constructor, 'jordanCR' will only start out with it's default values
+  Student jordanCR; 
   jordanCR.assignId(1524026);              // assign ID to Student object
   long myId = jordanCR.getId();            // get ID
   if(2 * jordanCR.getId() > 1000)
@@ -195,8 +220,16 @@ int main() {
   jordanCR.show();                         // output information
 
 
+  // Single object constructor
+  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
+  // invoke an object's class constructor by declaring it like a function
+  Student koenR("Koen Randleman", 1122334, 4.0);
+  printf("\t");
+  koenR.show();
+
+
   // Object array
-  printf("\nWorking with an array of 10 \"Student\" objects:\n");
+  printf("\nWorking with an array of 6 \"Student\" objects:\n");
   Student class[6];
   char names[6][20] = {"Cameron", "Sidd", "Austin", "Sabiq", "Tobias", "Gordon"};
   for(int i = 0; i < 6; ++i) {
@@ -207,6 +240,18 @@ int main() {
   for(int i = 0; i < 6; ++i) {
     printf("\t");
     class[i].show();
+  }
+
+
+  // Object array constructor
+  printf("\nWorking with a constructor to initialize an array of 6 \"Student\" objects:\n");
+  // => note that to use a constructor with an array of objects, simply denote it as you
+  //    would with a single object while treating the array subscript as part of its name
+  // => note that arrays w/ a constructor apply it across all of its elements
+  Student group[6]("group_student", 1111111, 3.0);
+  for(int i = 0; i < 6; ++i) {
+    printf("\t");
+    group[i].show();
   }
 
 
@@ -240,21 +285,22 @@ int main() {
 
 
   // Having a function return an object
-  printf("\nHaving a function make & return a College object:\n");
+  printf("\nHaving a function make & return a \"College\" object:\n");
   // note the College object is initialized by a value (in this case a function)
   // thus the otherwise default-value construction won't be triggered
   College SantaClara = createCollege("Santa Clara", 1851); 
-  printf("\tSantaClara College object Name: %s, State: %s, Year Founded: %d\n", SantaClara.name, SantaClara.state, SantaClara.foundingYear);
+  printf("\tSantaClara \"College\" object Name: %s, State: %s, Year Founded: %d\n", SantaClara.name, SantaClara.state, SantaClara.foundingYear);
 
 
   // Having a method make & return an object
   Student willAR = jordanCR.createAStudent("Will Randleman", 1524027, 4.0);
-  printf("\nHaving a method make & return a Student object:\n");
+  printf("\nHaving a method make & return a \"Student\" object:\n");
   printf("\t");
   willAR.show();
 
+
   // Having a method swap 2 objects via '*this' pointer
-  printf("\nHaving a method swap 2 Student objects via '*this' pointer in method:\n");
+  printf("\nHaving a method swap 2 \"Student\" objects via '*this' pointer in method:\n");
   Student jowiR;
   jowiR.assignName("Jowi Randleman");
   jowiR.assignId(5052009);
@@ -271,7 +317,7 @@ int main() {
 
 
   // Multi-layer object containment - A 'Region' object containing a 'College' object array each containing a 'Student' object array
-  printf("\nMulti-Layer Object Containment - Region object containing a College object array each containing a Student object array:\n");
+  printf("\nMulti-Layer Object Containment - \"Region\" object containing a \"College\" object array each containing a \"Student\" object array:\n");
   Region SiliconValley;
   SiliconValley.setRegionName("Silicon Valley");
   SiliconValley.addSchool(Scu);
@@ -284,13 +330,9 @@ int main() {
   SiliconValley.show();
 
 
-  // If "DECLASS_NDEEPCPY" not #defined, all classes have the '.deepcpy()' method by default to return
-  // a copy of the invoking object w/ its memory-allocated default values allocated their own block 
-  // of memory -- w/ the copy's memory being allocated as default was assigned ("smrt" or otherwise)
-  Region SF = SiliconValley.deepcpy();
-  SF.setRegionName("San Francisco");
-  printf("\n\"SiliconValley.deepcpy();\" & Renamed \"San Francisco\":\n");
-  SF.show();
+  // Initializing a "Region" object's contained "Student" object & object array w/ a constructor
+  printf("\nInitializing a \"Region\" object's contained \"Student\" object & object array w/ a constructor:\n");
+  SiliconValley.showTopStudents();
 
   return 0;
 }
