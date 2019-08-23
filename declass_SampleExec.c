@@ -76,7 +76,7 @@ class Student {
     }
   }
 
-  // create class constructors by making a "typeless" method w/ the same same of the class
+  // create class constructors by making a "typeless" method w/ the same name of the class
   // -- gets invoked at every object delcaration so long as "(<args>)" are provided,
   // otherwise object only get default values w/o calling its constructor
   Student(char *userName, long id, float gpa) {
