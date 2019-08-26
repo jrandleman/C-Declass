@@ -87,7 +87,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _**Note**: suppose class_ "`className`"_, object_ "`objName`"_, & an object memory allocation function_ "`alloc`"
 * **Using Ctors (declass.c automatically assigns object default values first):**
   * _**Single Object**:_ `className objName(args);`
-  * _**Object Array**:_ `className objName\[size](args);`
+  * _**Object Array**:_ `className objName[size](args);`
 * **Object Pointers & Initializing them with Ctors/Dflts/Neither:**       
   * _**"Dangling" Ptr**:_ `className *objName; // neither Ctor nor Dflt (default) values applied`
   * _**Ctor'd Ptr**:_ `className *objName(args); // only advised if Ctor also allocates memory`
