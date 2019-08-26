@@ -1,4 +1,5 @@
 // AUTHOR: JORDAN RANDLEMAN - DECLASSIFIER TO PRE-PREPROCESS .C FILES USING CLASSES
+// Email jrandleman@scu.edu or see https://github.com/jrandleman for support
 /**
  * compile: $ gcc -o declass declass.c
  *          $ ./declass yourFile.c 
@@ -21,7 +22,7 @@
 #define IS_WHITESPACE(c) (c == ' ' || c == '\t' || c == '\n')
 #define VARCHAR(CH) (((CH)>='A' && (CH)<='Z') || ((CH)>='a' && (CH)<='z') || (((CH)>='0' && (CH)<='9')) || (CH) == '_')
 // append string to NEW_FILE buffer when splicing in large-scale changes
-#define APPEND_BUFF_OR_STR_TO_NEW_FILE(appending) \
+#define APPEND_STR_TO_NEW_FILE(appending) \
   for(int m_i = 0, len = strlen(appending); m_i < len; ++m_i, *j += 1) NEW_FILE[*j] = appending[m_i];
 // initialize array with zero's (wipes garbage memory)
 #define FLOOD_ZEROS(arr, len) ({for(int arr_i = 0; arr_i < len; ++arr_i) arr[arr_i] = 0;})
@@ -31,71 +32,166 @@
 #define MAX_CLASSES 1000
 #define MAX_MEMBERS_PER_CLASS 100
 #define MAX_METHODS_PER_CLASS 100
-#define MAX_MEMBER_BYTES_PER_CLASS 5001
-#define MAX_METHOD_BYTES_PER_CLASS 5001
+#define MAX_MEMBER_BYTES_PER_CLASS 10001
+#define MAX_METHOD_BYTES_PER_CLASS 10001
 #define MAX_WORDS_PER_METHOD 1000
 #define MAX_DEFAULT_VALUE_LENGTH 251
-
 /*****************************************************************************
- *                       -:- DECLASS.C 8 CAVEATS -:-                        *
- *   (1) 'DECLASS_' PREFIX & 'this' POINTER ARE RESERVED                    *
- *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
- *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
- *   (4) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
- *       (*) IE NOT:      'className c, e;'                                 *
- *       (*) ALTERNATIVE: 'className c; <press enter> className e;'         *
- *   (5) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
- *       (*) IE NOT:      'someObj.method1(someObj.method2());'             *
- *       (*) ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'  *
- *   (6) CLASS ARRAYS RECIEVED AS ARGS MUST BE DENOTED WITH '[]' NOT '*':   *
- *       (*) IE NOT:      'func(className *classArr){...}'                  *
- *       (*) ALTERNATIVE: 'func(className classArr[]){...}'                 *
- *   (7) NO POINTER TO ARRAY OF OBJECTS:                                    *
- *       (*) IE NOT:      className (*ptrToArrObj)[10];                     *
- *       (*) ALTERNATIVE: pointer to an object w/ array of objects member   *
+||^\\ //=\\ //==\ /| |\ /\\  //\ /|==\ /\\ ||==== //^\\ ==== ==== //=\\ /\\ ||
+||  ))|| || ||    || || ||\\//|| ||=   ||\\|| || |/===\| ||   ||  || || ||\\||
+||_// \\=// \\==/ \\=// || \/ || \|==/ || \// || ||   || ||  ==== \\=// || \//
+ *****************************************************************************
+ *                 -:- DECLASS.C 10 CAVEATS WRT CLASSES -:-                 *
+ *   (0) RESERVED: "DC_" PREFIX, "this" PTR, "CONST", & STORAGE VARIABLES   *
+ *   (1) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
+ *   (2) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
+ *   (3) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
+ *       (*) IE NOT:   "className c, e;"                                    *
+ *       (*) RATHER:   "className c; <press enter> className e;"            *
+ *   (4) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
+ *       (*) IE NOT:   "someObj.method1(someObj.method2());"                *
+ *       (*) RATHER:   "int x = someObj.method2(); someObj.method1(x);"     *
+ *   (5) CLASS ARRAYS RECEIVED AS ARGS MUST BE DENOTED W/ "[]" NOT "*":     *
+ *       (*) IE NOT:   "func(className *classArr){...}"                     *
+ *       (*) RATHER:   "func(className classArr[]){...}"                    *
+ *   (6) NO PTR TO OBJECT ARRAY OR VISE-VERSA (UNDEFINED BEHAVIOR):         *
+ *       (*) IE NOT:   "className (*ptrToArrObj)[10];"                      *
+ *       (*) RATHER:   ptr to an obj w/ array of obj member (or vise-versa) *
+ *   (7) NO MULTIDIMENSIONAL OBJECT ARRAYS (UNDEFINED BEHAVIOR):            *
+ *       (*) IE NOT:   className objMatrix[10][10];                         *
+ *       (*) RATHER:   array of objects each w/ array of objects member     *
  *   (8) CONTAINMENT, NOT INHERITANCE: CLASSES CAN ONLY ACCESS MEMBERS &    *
  *       METHODS OF THEIR OWN IMMEDIATE MEMBER CLASS OBJECTS:               *
- *       (*) IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.    *
- *               c3 can access c2 members and c2 ca access c1 members,      *
- *               but c3 CANNOT access c1 members                            *
- *       (*) ALTERNATIVES: (1) simply include a c1 object as a member in c3 *
- *                         (2) create methods in c2 invoking c1 methods as  *
- *                             an interface for c3                          *
+ *       (*) NOTE:     let "->" denote "can access the members of"          *
+ *       (*) IE:       suppose classes c1, c2 & c3: w/ c1 in c2 & c2 in c3. *
+ *                     c3 -> c2, and c2 -> c1, BUT NOT c3 -> c1.            *
+ *       (*) RATHER:   (1) include a c1 object as a member in c3            *
+ *                     (2) mk c2 methods invoking c1 methods: c3 interface  *
+ *   (9) ONLY BINARY SINGLE-LINE CONDITIONAL ("?:") OBJECT RETURNS:         *
+ *       (*) IE NOT:   "return case ? obj : case2 ? obj2 : obj3;"           *
+ *       (*) RATHER:   "if(case)return obj; return case2 ? obj2 : obj3;"    *
  *****************************************************************************
- *                         -:- DECLASS.C NOTES -:-                          *
- *   (1) W/O "#define DECLASS_NSMRTPTR", THE SMRTPTR.H LIBRARY IS INCLUDED, *
- *       W/ IMPROVED MALLOC/CALLOC/REALLOC/FREE FCNS & GARBAGE COLLECTION   *
- *       (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"   *
- *   (2) DENOTE CONSTRUCTORS AS TYPLESS METHODS W/ SAME NAME AS ITS CLASS   *
- *   (3) DELCARING OBJECTS => CONSTRUCTORS (CTORS) & DEFAULT (DFLT) VALUES: *
- *       (*) only dflt values: "className objectName;"                      *
- *       (*) dflts & ctor(if defined): "className objectName(ctor_args);"   *
- *       (*) dflts & ctor for an array: "className objectName[size](args);" *
+ *                       -:- DECLASS.C & SMRTPTR.H -:-                      *
+ *    SMRTPTR.H LIBRARY IS DEFAULT INCLUDED, W/ IMPROVED MALLOC, CALLOC,    *
+ *    REALLOC, & FREE FUNCTIONS AS WELL AS GARBAGE COLLECTION               *
+ *      (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"    *
+ *****************************************************************************
+ *                     -:- DECLASS.C CTORS & DTORS -:-                      *
+ *   FORMATTING:                                                            *
+ *     (0) CONSTRUCTOR(CTOR) DENOTED AS TYPELESS METHOD W/ CLASS' NAME      *
+ *         (*) can initialize contained object members as default value     *
+ *         (*) user-invoked in obj declaration, auto-assigns defaults 1st   *
+ *         (*) can take arguments                                           *
+ *     (1) DESTRUCTOR(DTOR) DENOTED LIKE CTOR, BUT PREFIXED W/ '~':         *
+ *         (*) container objs auto-dtor any member objs 1st in destruction  *
+ *         (*) either invoked by user or autonomously once obj left scope   *
+ *         (*) NEVER takes arguments                                        *
+ *     (2) FOR BOTH CTORS & DTORS:                                          *
+ *         (*) NEVER have a "return" value (being typeless)                 *
+ *         (*) user can explicitly invoke (object "oName" & class "cName"): *
+ *             => DTOR: destroy oName immediately: "~oName();"              *
+ *             => CTOR: return ctor'd cName object instance: "cName(args);" *
+ *                => these so-called "dummy" ctors don't init specific objs *
+ *                   rather they return an instance of a sample ctor'd obj  *
+ *                => "cName oName(args);" == "cName oName = cName(args);"   *
+ *   DEFAULT PROPERTIES:                                                    *
+ *     (0) DEFAULT CLASS CTOR/DTOR PROVIDED IF LEFT UNDEFINED BY USER       *
+ *     (1) 3 KINDS OF OBJECTS NEVER DTOR'D IN THEIR IMMEDIATE SCOPE:        *
+ *         (*) object args: dtor'd at the end of their invoking fcn's scope *
+ *         (*) returned obj: assumed assigned as a val 2B dtor'd externally *
+ *         (*) "immortal" obj: never dtor'd, see below to learn more        *
+ *         => NOTE: THE LAST 2 ABOVE CAN BE DTOR'D W/ MACRO FLAGS 3-5 BELOW *
+ *   OBJECT DECLARATION INVOCATION:                                         *
+ *     (0) ONLY DEFAULT VALUES (DFLT VALS):                                 *
+ *         (*) SINGLE:   "className objectName;"                            *
+ *         (*) ARRAY:    "className objectName[size];"                      *
+ *     (1) CTOR (AUTO-APPLIES DFLT VALS 1ST):                               *
+ *         (*) SINGLE:   "className objectName(args);"                      *
+ *         (*) ARRAY:    "className objectName[size](args);"                *
+ *     (2) OBJ PTRS & INITIALIZING W/ CTOR/DFLT/NEITHER ("alloc" = any fcn) *
+ *         (*) "className *objectName;"                 // neither          *
+ *         (*) "className *objectName(args);"           // ctor             *
+ *         (*) "className *objectName = alloc();"       // dflt             *
+ *         (*) "className *objectName(args) = alloc();" // ctor & dflt      *
+ *****************************************************************************
+ *                  -:- DECLASS.C & "immortal" KEYWORD -:-                  *
+ *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR                *
+ *       (*) DECLARATION: "immortal className objName;"                     *
+ *       (*) contained objects can also be immortal                         *
+ *   (1) OBJ ARGS ALWAYS IMMORTAL: AS PLACEHOLDERS, THE PASSED OBJ THEY     *
+ *       REPRESENT AREN'T OUT OF SCOPE ONCE FCN ENDS (NO DOUBLE DTOR)       *
+ *       (*) thus denoting obj args as "immortal" is redundant              *
+ *       (*) "MACRO FLAG" (3) disables all immortal obj EXCEPT obj args     *
+ *****************************************************************************
+ *               -:- DECLASS.C SPECIALIZATION MACRO FLAGS -:-               *
+ *   BY PRECEDENCE:                                                         *
+ *     (0) "#define DECLASS_IGNORE"       => DECLASS.C WON'T CONVERT FILE   *
+ *     (1) "#define DECLASS_STRICTMODE"   => ENABLES MACRO FLAGS 2-4        *
+ *     (2) "#define DECLASS_NSMRTPTR"     => DISABLES "SMRTPTR.H"           *
+ *     (3) "#define DECLASS_NIMMORTAL"    => DISABLES "immortal" KEYWORD    *
+ *     (4) "#define DECLASS_DTORRETURN"   => ALSO DTOR RETURNED OBJECTS     *
+ *     (5) "#define DECLASS_NOISYSMRTPTR" => ALERT "SMRTPTR.H"'S ALLOC/FREE *
+ *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
+ *     (0) declass.c relies on being able to identify memory allocation     *
+ *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
+ *     (1) aside from malloc/calloc/smrtmalloc/smrtcalloc, users can        *
+ *         declare their own custom class obj memory allocation functions   *
+ *         to be recognized by declass.c at the top of their program        *
+ *         (*) NOTE: ASSUMES ALL ALLOC FCNS RETURN "NULL" OR EXIT ON FAIL   *
+ *     (2) list alloc fcn names after a "#define DECLASS_ALLOC_FCNS" macro  *
  *****************************************************************************/
 
 // stores class names, & their associated methods
-typedef struct class_info { 
+struct class_info { 
   char class_name[75], method_names[MAX_METHODS_PER_CLASS][75]; 
   char member_names[MAX_MEMBERS_PER_CLASS][75], member_values[MAX_MEMBERS_PER_CLASS][MAX_DEFAULT_VALUE_LENGTH];
   bool class_has_alloc;                                     // class has 1+ member of: malloc/calloc/smrtmalloc/smrtcalloc
   bool class_has_ctor, class_has_ctor_args;                 // class has user-defined ctor to invoke when assigning default
+  bool class_has_dtor;                                      // class has user-defined dtor to invoke when leaving obj scope
   bool member_is_array[MAX_MEMBERS_PER_CLASS];              // init empty arrays as {0}
   bool member_is_pointer[MAX_MEMBERS_PER_CLASS];            // init pointers as 0 (same as NULL)
-  bool member_value_is_alloc[MAX_MEMBERS_PER_CLASS];        // track alloc'd members to be freed
+  bool member_value_is_alloc[MAX_MEMBERS_PER_CLASS];        // track alloc'd members for '-l' awareness & "sizeof()" arg
+  bool member_is_immortal[MAX_MEMBERS_PER_CLASS];           // track "immortal" members: never trigger user-def'd dtors
   char member_value_user_ctor[MAX_MEMBERS_PER_CLASS][350];  // track user-define ctor arr vals (spliced out for DFLT fcn)
   char member_object_class_name[MAX_MEMBERS_PER_CLASS][75]; // used to intialize contained class objects
-  int total_methods, total_members; 
-} CLASS_INFO;
-CLASS_INFO classes[MAX_CLASSES];
+  int total_methods, total_members;
+} classes[MAX_CLASSES];
 int total_classes = 0;
 
 // stores object names, & their associated class
-typedef struct objNames { 
+struct objNames { 
   char class_name[75], object_name[75]; 
-  bool is_class_pointer, is_class_array;
-} OBJ_INFO;
-OBJ_INFO objects[MAX_OBJECTS];
+  bool is_class_pointer, is_alloced_class_pointer, is_class_array;
+  bool class_has_dtor, is_immortal;
+} objects[MAX_OBJECTS];
 int total_objects = 0;
+
+// keeps track of "#define"'d flags in the user's program to alter the interpreter's course
+#define TOTAL_FLAGS 6
+struct user_hashtag_defined_flags {
+  char flags[TOTAL_FLAGS][30];
+  bool defaults[TOTAL_FLAGS];
+  bool non_dflt[TOTAL_FLAGS];
+} DEFNS = {
+  {
+    "DECLASS_IGNORE",    "DECLASS_STRICTMODE", "DECLASS_NSMRTPTR",
+    "DECLASS_NIMMORTAL", "DECLASS_DTORRETURN", "DECLASS_NOISYSMRTPTR"
+  },
+  {false, false, true,  true,  false, false}, 
+  {true,  true,  false, false, true,  true}
+};
+// flags ordered by superseding precedence, & in same order as their "DEFNS.flags[][]" counterparts
+bool *NO_DECLASS    = &DEFNS.defaults[0];  // file is not to be interpretted - terminate program    (default false)
+bool *STRICT_MODE   = &DEFNS.defaults[1];  // !SMRT_PTRS && !IMMORTALITY && DTOR_RETURN             (default false)
+bool *SMRT_PTRS     = &DEFNS.defaults[2];  // confirms default inclusion of smrtptr.h               (default true)
+bool *IMMORTALITY   = &DEFNS.defaults[3];  // confirms default enabling of "immortal" keyword       (default true)
+bool *DTOR_RETURN   = &DEFNS.defaults[4];  // returned objects also dtor'd                          (default false)
+bool *NOISY_SMRTPTR = &DEFNS.defaults[5];  // confirms whether to alert all smrtptr.h alloc/freeing (default false)
+
+/* NOTE: IT IS ASSUMED THAT USER-DEFINED ALLOCATION FCNS RETURN NULL OR END PROGRAM UPON ALLOC FAILURE */
+int TOTAL_ALLOC_FCNS = 4; // increases if user defines their own allocation fcns
+// user can add up to 100 of their own alloc fcns
+char ALLOC_FCNS[104][200] = { "malloc", "calloc", "smrtmalloc", "smrtcalloc" };
 
 // basic c type keywords:
 #define TOTAL_TYPES 14
@@ -106,16 +202,22 @@ char basic_c_types[TOTAL_TYPES][11] = {
 // brace-additions
 #define TOTAL_BRACE_KEYWORDS 5
 char brace_keywords[TOTAL_BRACE_KEYWORDS][8] = {"else if", "if", "else", "for", "while"};
-// "classless" default methods available for all classes
 
-/* BRACE FUNCTIONS & SMRTPTR.H */
-bool SMRT_PTRS;
+/* BRACE-ADDITION FUNCTION */
 void add_braces(char []);
 /* MESSAGE FUNCTIONS */
+void enable_smrtptr_alerts();
 void confirm_valid_file(char *);
-void declass_missing_Cfile_alert();
 void declass_DECLASSIFIED_ascii_art();
+void declass_ERROR_ascii_art();
+void declass_missing_Cfile_alert();
+void throw_DECLASS_IGNORE_message_and_terminate();
 void show_l_flag_data();
+void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char [12],int,int);
+void throw_potential_invalid_double_dflt_assignment(char*);
+/* USER-DEFINED ALLOCATION FUNCTIONS PARSING/REGISTERING FUNCTIONS */
+bool is_an_alloc_fcn(char*);
+void register_user_defined_alloc_fcns(char*);
 /* COMMENT & BLANK LINE SKIPPING FUNCTIONS */
 void whitespace_all_comments(char *);
 void trim_sequential_spaces(char []);
@@ -124,12 +226,24 @@ int remove_blank_lines(char *);
 bool no_overlap(char, char *);
 bool is_at_substring(char *, char *);
 /* OBJECT CONSTRUCTION FUNCTIONS */
+bool is_a_dummy_ctor(char *);
 void mk_initialization_brace(char [], int);
 void mk_ctor_macros(char [], char *);
 void mk_class_global_initializer(char *, char *, char *);
-/* USER-DEFINED OBJECT CONSTRUCTOR PARSING FUNCTIONS */
+int prefix_dummy_ctor_with_DC__DUMMY_(char *, char *);
+/* USER-DEFINED OBJECT CONSTRUCTOR (CTOR) PARSING FUNCTIONS */
 bool get_user_ctor(char *, char *, char *, bool *);
-char *check_for_ctor_obj(char *, char *, char *, int *, int *, bool *);
+char *check_for_ctor_obj(char *, char *, int *, int *, bool *);
+/* OBJECT ARRAY DESTRUCTION-MACRO CREATION FUNCTION */
+void mk_dtor_array_macro(char [], char *);
+/* USER-DEFINED OBJECT DESTRUCTOR (DTOR) PARSING & SPLICING FUNCTIONS */
+int shiftSplice_dtor_in_buffer(char *, char *);
+bool object_is_returned(char *);
+void get_if_else_object_idxs(char *, int *);
+bool unique_dtor_condition(char *, char *);
+int one_line_conditional(char *);
+int return_then_immediate_exit(char *);
+void add_object_dtor(char *);
 /* OBJECT METHOD PARSER */
 int parse_method_invocation(char *, char *, int *, bool, char[][75]);
 void splice_in_prepended_method_name(char *, char *, int, char *, int *, int *, char[][75]);
@@ -142,12 +256,12 @@ void get_invoked_member_name(char *, char *);
 void get_object_name(char *, char *, char *, int, char [][75], bool, bool *);
 int prefix_local_members_and_cpy_method_args(char *, char *, char [][75], int *, char);
 /* STORE OBJECT INFORMATION */
-bool store_object_info(char *);
+bool store_object_info(char *, int, bool *);
 /* PARSE CLASS HELPER FUNCTIONS */
 bool is_struct_definition(char *);
 void get_class_name(char *, char *);
-void confirm_only_one_ctor(char *);
-bool get_prepended_method_name(char *, char *, char *);
+void confirm_only_one_cdtor(char *, char *, char *);
+void get_prepended_method_name(char *, char *, char *, bool *, bool *);
 int get_initialized_member_value(char *);
 void register_member_class_objects(char *);
 void check_for_alloc_sizeof_arg();
@@ -163,10 +277,11 @@ bool valid_member(char *, char *, char, char, char [][75], int);
 /* PARSE CLASS */
 int parse_class(char *, char [], int *);
 
-// declassed program contact header
-#define DECLASS_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
+// declassed program contact header && "immortal" keyword
+#define DC_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
+#define IMMORTAL_KEYWORD_DEF "#define immortal // immortal keyword active\n"
 // smrtptr.h to implement stdlib.h's memory handling functions w/ garbage collection
-#define DECLASS_SMART_POINTER_H_ "\
+char DC_SMART_POINTER_H_[4500] = "\
 /****************************** SMRTPTR.H START ******************************/\n\
 // Source: https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer\n\
 #ifndef SMRTPTR_H_\n\
@@ -217,6 +332,7 @@ void smrtptr(void *ptr) {\n\
   int i = 0;\n\
   for(; i < SMRTPTR_GC.len; ++i) if(SMRTPTR_GC.ptrs[i] == ptr) return;\n\
   SMRTPTR_GC.ptrs[SMRTPTR_GC.len++] = ptr;\n\
+  // printf(\"SMART POINTER #%ld STORED!\\n\", SMRTPTR_GC.len); // optional\n\
 }\n\
 // malloc's a pointer, stores it in the garbage collector, then returns ptr\n\
 void *smrtmalloc(size_t alloc_size) {\n\
@@ -243,6 +359,7 @@ void *smrtrealloc(void *ptr, size_t realloc_size) {\n\
       smtr_realloced_ptr = realloc(ptr, realloc_size); // frees ptr in garbage collector\n\
       if(smtr_realloced_ptr == NULL) smrtptr_throw_bad_alloc(\"REALLOC\", \"SMRTREALLOC FUNCTION\");\n\
       SMRTPTR_GC.ptrs[i] = smtr_realloced_ptr; // point freed ptr at realloced address\n\
+      // printf(\"SMART POINTER REALLOC'D!\\n\"); // optional\n\
       return smtr_realloced_ptr;\n\
     }\n\
   // realloc a \"dumb\" ptr then add it to garbage collector\n\
@@ -260,11 +377,12 @@ void smrtfree(void *ptr) {\n\
       for(j = i; j < SMRTPTR_GC.len - 1; ++j) // shift ptrs down\n\
         SMRTPTR_GC.ptrs[j] = SMRTPTR_GC.ptrs[j + 1];\n\
       SMRTPTR_GC.len--;\n\
+      // printf(\"SMART POINTER FREED!\\n\"); // optional\n\
       return;\n\
     }\n\
 }\n\
 #endif\n\
-/******************************* SMRTPTR.H END *******************************/"
+/******************************* SMRTPTR.H END *******************************/";
 
 /******************************************************************************
 * MAIN EXECUTION
@@ -294,48 +412,83 @@ int main(int argc, char *argv[]) {
   int i = 0, j = 0;
   bool in_a_string = false;
 
+  // remove commments from program: ensures
+  // braces applied properly & reduces size
+  whitespace_all_comments(file_contents);
+  trim_sequential_spaces(file_contents);
+
   // wrap braces around single-line "braceless" if, else if, else, while, & for loops
   add_braces(file_contents);
+  // uncomment smrtptr.h's alerts if user included "#define DECLASS_NOISYSMRTPTR"
+  if(*SMRT_PTRS && *NOISY_SMRTPTR) enable_smrtptr_alerts();
 
   while(file_contents[i] != '\0') {
     // don't modify anything in strings
     if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
 
     // store class info & convert to structs calling external fcns
-    if(!in_a_string && is_at_substring(&file_contents[i], "class ")) 
+    if(!in_a_string && is_at_substring(&file_contents[i], "class ") && (!VARCHAR(file_contents[i-1]))) 
       i += parse_class(&file_contents[i], NEW_FILE, &j);
 
     // store declared class object info
+    bool dummy_ctor = false;
     for(int k = 0; !in_a_string && k < total_classes; ++k)
       if(is_at_substring(&file_contents[i], classes[k].class_name) 
         && !VARCHAR(file_contents[i+strlen(classes[k].class_name)]) && !VARCHAR(file_contents[i-1]))
-        if(store_object_info(&file_contents[i])) { // assign default values
+        if(store_object_info(&file_contents[i], 0, &dummy_ctor)) { // assign default values
+
+          // check if a so-called "dummy ctor" was detected and splice 
+          // in the "DC__DUMMY_" class/ctor name's prefix if so
+          if(dummy_ctor) {
+            char *read = &file_contents[i], *write = &NEW_FILE[j];
+            int dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(write, read);
+            j = strlen(NEW_FILE);
+            i += dummy_ctor_len;
+            break;
+          }
 
           // check if class is already initialized by user
           int already_assigned = i;
           while(file_contents[already_assigned] != '\0' && no_overlap(file_contents[already_assigned], "\n;,=")) 
             ++already_assigned;
-          if(file_contents[already_assigned] == '=') break;
+          if(file_contents[already_assigned] == '=' && !objects[total_objects-1].is_alloced_class_pointer) {
+            add_object_dtor(&file_contents[i]); 
+            break;
+          }
 
           // determine if object is invoking it's user-defined constructor
           char *user_ctor_finder = &file_contents[i];
           char user_ctor[500]; FLOOD_ZEROS(user_ctor, 500);
           bool is_fcn_returning_obj = false;
-          bool user_ctor_invoked = get_user_ctor(user_ctor_finder, user_ctor, classes[k].class_name, &is_fcn_returning_obj);
+          bool user_ctor_invoked = get_user_ctor(user_ctor_finder,user_ctor,classes[k].class_name,&is_fcn_returning_obj);
 
           // don't splice in any constructors if "object" is actually a fcn returning an object
           if(is_fcn_returning_obj) break;
 
           // initialization undefined -- use default initial values
           while(file_contents[i] != '\0' && file_contents[i-1] != ';') NEW_FILE[j++] = file_contents[i++];
-          if(objects[total_objects-1].is_class_array) // object = array, use macro init
-            sprintf(&NEW_FILE[j], " DECLASS__%s_ARR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
-          else // object != array, so init via its class' global object
-            sprintf(&NEW_FILE[j], " DECLASS__%s_CTOR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
-          j = strlen(NEW_FILE);
+          // if an obj ptr allocating memory, confirm obj != NULL prior to passing to ctors & dflt-val assignment
+          if(objects[total_objects-1].is_alloced_class_pointer) {
+            sprintf(&NEW_FILE[j], " if(%s){", objects[total_objects-1].object_name);
+            j = strlen(NEW_FILE);
+          }
+          // only apply default values if either a non-ptr or an allocated ptr
+          if(!objects[total_objects-1].is_class_pointer || objects[total_objects-1].is_alloced_class_pointer) {
+            if(objects[total_objects-1].is_class_array)        // object = array, use macro init
+              sprintf(&NEW_FILE[j], " DC__%s_ARR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
+            else if(objects[total_objects-1].is_class_pointer) // object != array, so init via its class' global object
+              sprintf(&NEW_FILE[j], " DC__%s_CTOR((*%s));", classes[k].class_name, objects[total_objects-1].object_name);
+            else                                               // object != array, so init via its class' global object
+              sprintf(&NEW_FILE[j], " DC__%s_CTOR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
+            j = strlen(NEW_FILE);
+          }
 
           // add user-defined ctor invocation w/ initialization values (if present)
           if(user_ctor_invoked) { sprintf(&NEW_FILE[j], " %s", user_ctor); j = strlen(NEW_FILE); }
+          add_object_dtor(&file_contents[i]); // splice in object's class dtor at the end of the current scope
+
+          // if an obj ptr allocing memory, close the "if != null" braced-condition
+          if(objects[total_objects-1].is_alloced_class_pointer) NEW_FILE[j++] = '}';
           break;
         }
 
@@ -355,15 +508,19 @@ int main(int argc, char *argv[]) {
   printf("%s", filename);
   printf("\n=================================================================================\n");
   trim_sequential_spaces(NEW_FILE);
-  
+
   char HEADED_NEW_FILE[MAX_FILESIZE]; FLOOD_ZEROS(HEADED_NEW_FILE, MAX_FILESIZE);
 
-  // determine if ought to include smrtptr.h at top of file - as per whether
-  // "#define DECLASS_NSMRTPTR" wasn't/was found
-  if(!SMRT_PTRS) sprintf(HEADED_NEW_FILE,"/* DECLASSIFIED: %s\n * %s\n\n%s", 
-    filename, DECLASS_SUPPORT_CONTACT, NEW_FILE);
-  else sprintf(HEADED_NEW_FILE,"/* DECLASSIFIED: %s\n * %s\n%s\n\n%s", 
-    filename, DECLASS_SUPPORT_CONTACT, DECLASS_SMART_POINTER_H_, NEW_FILE);
+  // determine if ought to include smrtptr.h/"immortal"-keyword at top of file - as per whether
+  // "#define DECLASS_NSMRTPTR" or "#define DECLASS_NIMMORTAL" wasn't/was found
+  char *headed_new_file_ptr = HEADED_NEW_FILE;
+  sprintf(headed_new_file_ptr,"/* DECLASSIFIED: %s\n * %s\n", filename, DC_SUPPORT_CONTACT);
+  headed_new_file_ptr += strlen(headed_new_file_ptr);
+  if(*IMMORTALITY) sprintf(headed_new_file_ptr,"%s", IMMORTAL_KEYWORD_DEF); // include "immortal" keyword if active
+  headed_new_file_ptr += strlen(headed_new_file_ptr);
+  if(*SMRT_PTRS)   sprintf(headed_new_file_ptr,"%s", DC_SMART_POINTER_H_);  // include smrtptr.h if active
+  headed_new_file_ptr += strlen(headed_new_file_ptr);
+  sprintf(headed_new_file_ptr,"\n\n%s", NEW_FILE);
   
   // write newly converted/declassified file & notify success to user
   FPUT(HEADED_NEW_FILE,filename);
@@ -375,28 +532,22 @@ int main(int argc, char *argv[]) {
 }
 
 /******************************************************************************
-* BRACE FUNCTIONS
+* BRACE-ADDITION FUNCTION
 ******************************************************************************/
 
-// add braces around any "braceless" single-line conditionals & while/for loops
-// ALSO ASSIGNS GLOBAL "SMRT_PTRS" flags for on/off smrtptr.h
+// add braces around any "braceless" single-line conditionals & while/for loops 
+// and detects any "#define"'d flags by the user to guide this interpreter's course
 void add_braces(char file_contents[]) {
-  char BRACED_FILE[MAX_FILESIZE], *blanker;
+  char BRACED_FILE[MAX_FILESIZE];
   int k, i = 0, j = 0, in_brace_args = 0;
   FLOOD_ZEROS(BRACED_FILE, MAX_FILESIZE);
   BRACED_FILE[j++] = file_contents[i++]; // so "file_contents[i-1]" won't throw error
   bool in_a_string = false;
-  SMRT_PTRS = true;
-
-  // remove commments from program, & the initial '/' if "file_contents" starts with a comment:
-  blanker = file_contents;
-  if(file_contents[0] == '/' && (file_contents[1] == '/' || file_contents[1] == '*')) BRACED_FILE[0] = ' ';
-  whitespace_all_comments(blanker); // ensures braces & DECLASS_NSMRTPTR flag applied correctly
 
   while(file_contents[i] != '\0') {
     if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
-    // check whether user disabled smrtptr.h: "#define DECLASS_NSMRTPTR"
-    if(!in_a_string && file_contents[i] == '\n' && SMRT_PTRS) {
+    // check whether user defined any of the flags in the "DEFN" struct, (STRICT_MODE supersedes all)
+    if(!in_a_string && file_contents[i] == '\n' && !(*STRICT_MODE) && !(*NO_DECLASS)) {
       int l = i;
       while(IS_WHITESPACE(file_contents[l])) ++l;
       if(file_contents[l] == '#') {
@@ -405,14 +556,31 @@ void add_braces(char file_contents[]) {
         if(is_at_substring(&file_contents[l], "define")) {
           l += strlen("define");
           while(IS_WHITESPACE(file_contents[l])) ++l;
-          if(is_at_substring(&file_contents[l], "DECLASS_NSMRTPTR") 
-            && !VARCHAR(file_contents[l+strlen("DECLASS_NSMRTPTR")])) { 
-            SMRT_PTRS = false, i = l + strlen("DECLASS_NSMRTPTR");
-            sprintf(&BRACED_FILE[j], "\n#define DECLASS_NSMRTPTR"); 
-            j = strlen(BRACED_FILE); continue;
+          int flag = 0;
+          if(is_at_substring(&file_contents[l], "DECLASS_ALLOC_FCNS")) {
+            register_user_defined_alloc_fcns(&file_contents[l]);
+            // skip over user-defined fcns & don't copy to new file (don't want to #define fcn names redefined later)
+            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\'))
+              ++l;
           }
+          for(; flag < TOTAL_FLAGS; ++flag)
+            if(is_at_substring(&file_contents[l], DEFNS.flags[flag]) 
+              && !VARCHAR(file_contents[l+strlen(DEFNS.flags[flag])])) { 
+              DEFNS.defaults[flag] = DEFNS.non_dflt[flag], i = l + strlen(DEFNS.flags[flag]);
+              sprintf(&BRACED_FILE[j], "\n#define %s", DEFNS.flags[flag]);
+              j = strlen(BRACED_FILE);
+              break;
+            }
+          if(flag < TOTAL_FLAGS) continue; // check for consecutive flags
         }
       }
+    }
+
+    // confirm "#define DECLASS_IGNORE" not found
+    if(*NO_DECLASS) throw_DECLASS_IGNORE_message_and_terminate();
+    if(*STRICT_MODE) {
+      *SMRT_PTRS = *IMMORTALITY = false;
+      *DTOR_RETURN = true;
     }
 
     // check for else if, if, else, while, & for
@@ -460,18 +628,36 @@ void add_braces(char file_contents[]) {
 * MESSAGE FUNCTIONS
 ******************************************************************************/
 
+// uncomments smrtptr.h's alerts, invoked if detected "#define DECLASS_NOISYSMRTPTR"
+void enable_smrtptr_alerts() {
+  char *p = DC_SMART_POINTER_H_;
+  while(*p != '\0' && !is_at_substring(p, 
+    "// if(SMRTPTR_GC.len > 0) printf(\"FREED %ld SMART POINTERS!\\n\"")) ++p;
+  *p++ = ' '; *p++ = ' '; // uncomment smrtptr.h's garbage-collector alert
+  while(*p != '\0' && !is_at_substring(p, "// printf(\"SMART POINTER #%ld STORED!\\n\"")) ++p;
+  *p++ = ' '; *p++ = ' '; // uncomment smrt-m/calloc alert
+  while(*p != '\0' && !is_at_substring(p, "// printf(\"SMART POINTER REALLOC'D!\\n\");")) ++p;
+  *p++ = ' '; *p++ = ' '; // uncomment smrtrealloc alert
+  while(*p != '\0' && !is_at_substring(p, "// printf(\"SMART POINTER FREED!\\n\");")) ++p;
+  *p++ = ' '; *p++ = ' '; // uncomment smrtfree alert
+}
+
 // confirms file exists, non-empty, & takes less memory than MAX_FILESIZE
 void confirm_valid_file(char *filename) {
   struct stat buf;
   if(stat(filename, &buf)) {
-    fprintf(stderr, "-:- FILE \"%s\" DOES NOT EXIST! -:-\n\n", filename);
+    declass_ERROR_ascii_art();
+    fprintf(stderr, "-:- FILE \"%s\" DOES NOT EXIST! -:-\n", filename);
+    fprintf(stderr, ">> Terminating Declassifier.\n\n");
     exit(EXIT_FAILURE);
   }
   if(buf.st_size > MAX_FILESIZE || buf.st_size == 0) {
+    declass_ERROR_ascii_art();
     if(buf.st_size > MAX_FILESIZE) {
       fprintf(stderr, "-:- FILE \"%s\" SIZE %lld BYTES EXCEEDS %d BYTE CAP! -:- \n",filename,buf.st_size,MAX_FILESIZE); 
-      fprintf(stderr, "-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n\n");
-    } else fprintf(stderr, "-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n\n"); 
+      fprintf(stderr, "-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n");
+    } else fprintf(stderr, "-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n"); 
+    fprintf(stderr, ">> Terminating Declassifier.\n\n");
     exit(EXIT_FAILURE);
   }
 }
@@ -485,14 +671,19 @@ void declass_DECLASSIFIED_ascii_art() {
   printf("\n=================================================================================\n");
 }
 
-// error & how-to-execute message
-void declass_missing_Cfile_alert() {
+// 'error' in ascii
+void declass_ERROR_ascii_art() {
   printf("\n========================================\n");
   printf("  /|===\\ ||^\\\\ ||^\\\\ //==\\\\ ||^\\\\   //\n");
   printf("  ||==   ||_// ||_// ||  || ||_//  //\n");
   printf("  \\|===/ || \\\\ || \\\\ \\\\==// || \\\\ <*>");
-  printf("\n========================================");
-  printf("\n** Missing .c File Cmd Line Argument! **\n");
+  printf("\n========================================\n");
+}
+
+// error & how-to-execute message
+void declass_missing_Cfile_alert() {
+  declass_ERROR_ascii_art();
+  printf("** Missing .c File Cmd Line Argument! **\n");
   printf("Execution:  $ gcc -o declass declass.c\n            $ ./declass yourCFile.c");
   printf("\n========================================");
   printf("\n*** Or Else: Misused '-l' Info Flag! ***\n");
@@ -503,6 +694,13 @@ void declass_missing_Cfile_alert() {
   printf("\n========================================\n");
   printf(">> Terminating Declassifier.");
   printf("\n============================\n\n");
+  exit(EXIT_FAILURE);
+}
+
+// thrown if "#define DECLASS_IGNORE" was detected, terminates program
+void throw_DECLASS_IGNORE_message_and_terminate() {
+  declass_ERROR_ascii_art();
+  fprintf(stderr, "-:- \"#define DECLASS_IGNORE\" Was Detected! -:-\n>> Terminating Declassifier.\n\n");
   exit(EXIT_FAILURE);
 }
 
@@ -527,6 +725,7 @@ void show_l_flag_data() {
         else if(classes[i].member_is_array[j]) printf(" %c  L_ %s[]", bar, classes[i].member_names[j]);
         else printf(" %c  L_ %s", bar, classes[i].member_names[j]);
         if(classes[i].member_value_is_alloc[j]) printf(" (( ALLOCATED MEMORY ))");
+        if(classes[i].member_is_immortal[j]) printf(" (( IMMORTAL ))");
         printf("\n");
       }
     }
@@ -536,8 +735,10 @@ void show_l_flag_data() {
         printf(" L_ METHODS: %d\n", classes[i].total_methods);
       for(int j = 0; j < classes[i].total_methods; ++j) {
         FLOOD_ZEROS(method_name, 150);
-        if(strcmp(classes[i].method_names[j], "DECLASS__constructor") == 0)
+        if(strcmp(classes[i].method_names[j], "DC__constructor") == 0)
           sprintf(method_name, "%s() (( CONSTRUCTOR ))", classes[i].class_name);
+        else if(strcmp(classes[i].method_names[j], "DC__destructor") == 0)
+          sprintf(method_name, "~%s() (( DESTRUCTOR ))", classes[i].class_name);
         else sprintf(method_name, "%s()", classes[i].method_names[j]);
         (class_objects_sum > 0) ? printf(" | L_ %s\n", method_name) : printf("   L_ %s\n", method_name);
       }
@@ -547,13 +748,89 @@ void show_l_flag_data() {
       printf(" L_ OBJECTS: %d\n", class_objects_sum);
       for(int j = 0; j < total_objects; ++j) 
         if(strcmp(classes[i].class_name, objects[j].class_name) == 0) {
-          if(objects[j].is_class_pointer)    printf("   L_ *%s\n", objects[j].object_name);
-          else if(objects[j].is_class_array) printf("   L_ %s[]\n", objects[j].object_name);
-          else printf("   L_ %s\n", objects[j].object_name);
+          if(objects[j].is_class_pointer)    printf("   L_ *%s", objects[j].object_name);
+          else if(objects[j].is_class_array) printf("   L_ %s[]", objects[j].object_name);
+          else printf("   L_ %s", objects[j].object_name);
+          if(objects[j].is_immortal) printf(" (( IMMORTAL ))");
+          printf("\n");
         }
     }
   }
   printf("\n=============================\n");
+}
+
+// triggered when a potential dummy ctor was found as an arg in a method
+// (highly unlikely but still a corner case) either continues declassifying
+// or terminates declass.c's conversion as per user's input
+void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char fcn[12],int line,int class_idx) {
+  fprintf(stderr, 
+    "-:- WARNING: UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d -:-\n", fcn, line);
+  fprintf(stderr, 
+    "-:- DETECTED \"%s(\" POTENTIAL \"DUMMY\" CTOR INVOCATION IN ARGS OF METHOD: \"%s\" IN CLASS: \"%s\" -:-\n", 
+    classes[class_idx].class_name, classes[total_classes].method_names[classes[total_classes].total_methods-1], 
+    classes[class_idx].class_name);
+  fprintf(stderr, "-:- DUMMY CTORS CAN RETURN OBJECTS, BUT NEVER REPRESENT THEM AS A VARIABLE! -:-\n");
+  printf("-:- CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO -:-\n\n>>> ");
+  int continueDeclassification;
+  scanf("%d", &continueDeclassification);
+  if(continueDeclassification == 1)
+    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+  else {
+    printf("\n\n>> Terminating Program.\n\n");
+    exit(EXIT_SUCCESS); // having been intentionally terminated
+  }
+}
+
+// thrown if during "object pointer being constructed and alloc'd" parsing a double assignment 
+// value not prefixed w/ "DC_" was detected (thus not a prefixed ctor as had been expected) 
+// (such being only instance where a valid double assignment could occur, and even then it's 
+// generated by declass.c not the user)
+void throw_potential_invalid_double_dflt_assignment(char *class_name) {
+  fprintf(stderr, "-:- WARNING: UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d -:-\n", __func__, __LINE__);
+  fprintf(stderr, 
+    "-:- DETECTED POTENTIAL DOUBLE DEFAULT-VALUE ASSINGMENT IN CLASS \"%s\" MEMBER DECLARATIONS -:-\n", class_name);
+  fprintf(stderr, "-:- NORMALLY OCCURS WHEN ALLOCATING & CONSTRUCTING A POINTER MEMBER AT ONCE -:-\n");
+  fprintf(stderr, "-:- IE: \"ClassName *objectName(args) = smrtmalloc(sizeof(className));\" -:-\n");
+  printf("-:- CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO -:-\n\n>>> ");
+  int continueDeclassification;
+  scanf("%d", &continueDeclassification);
+  if(continueDeclassification == 1) 
+    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+  else {
+    printf("\n\n>> Terminating Program.\n\n");
+    exit(EXIT_SUCCESS); // having been intentionally terminated
+  }
+}
+
+/******************************************************************************
+* USER-DEFINED ALLOCATION FUNCTIONS PARSING/REGISTERING FUNCTIONS
+******************************************************************************/
+
+// returns whether at a substring with either an stdlib.h, smrtptr.h, or user-defined allocation fcn
+bool is_an_alloc_fcn(char *str) {
+  for(int i = 0; i < TOTAL_ALLOC_FCNS; ++i) 
+    if(is_at_substring(str, ALLOC_FCNS[i]) && !VARCHAR(*(str + strlen(ALLOC_FCNS[i]))))
+      return true;
+  return false;
+}
+
+// given a line prefixed with "#define DECLASS_ALLOC_FCNS" parses out any user-defined
+// allocation fcns subsequently following
+void register_user_defined_alloc_fcns(char *s) { 
+  // alloc fcns must be seperate & on the same line, aside from that use spaces, commas,
+  // etc. (whatever floats your boat aesthetically)
+  int row = 0;
+  char *p = s;
+  while(!is_at_substring(p, "DECLASS_ALLOC_FCNS")) ++p; // skip past "#define" flag
+  p += strlen("DECLASS_ALLOC_FCNS");
+  while(*p != '\0' && (*p != '\n' || *(p-1) == '\\')) { // while still more user-defined alloc fcns
+    if(VARCHAR(*p)) { // copy the current user-defined alloc fcn
+      row = 0;
+      while(VARCHAR(*p)) ALLOC_FCNS[TOTAL_ALLOC_FCNS][row++] = *p++;
+      ALLOC_FCNS[TOTAL_ALLOC_FCNS++][row] = '\0';
+    }
+    if(*p != '\n' || *(p-1) == '\\') ++p; // skip past non alloc fcns
+  }
 }
 
 /******************************************************************************
@@ -581,7 +858,8 @@ void whitespace_all_comments(char *end) { // end = 1 past 1st '{'
   }
 }
 
-// trims any sequences of spaces ended by ('\n' || ';') to just ('\n' || ';') in "OLD_BUFFER"
+// trims any sequences of spaces ended by ('\n' || ';' || '=') to just ('\n' || ';' || '=') 
+// in "OLD_BUFFER" -- also trims any sequence of '\n' down to a max of 3 '\n'
 void trim_sequential_spaces(char OLD_BUFFER[]) {
   char *read = OLD_BUFFER, NEW_BUFFER[MAX_FILESIZE], *scout, *write;
   FLOOD_ZEROS(NEW_BUFFER, MAX_FILESIZE);
@@ -590,10 +868,16 @@ void trim_sequential_spaces(char OLD_BUFFER[]) {
   *write++ = *read++;                                   // so first string check doesn't check garbage memory
   while(*read != '\0') {
     if(*read == '"' && *(read-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && *read == ' ') {                  // trims space(s) + ('\n' || ';') sequence
+    if(!in_a_string && *read == ' ') {                  // trims space(s) + ('\n' || ';' || '=') sequence
       scout = read;
       while(*scout != '\0' && *scout == ' ') ++scout;   // skip over spaces
-      if(*scout == '\n' || *scout == ';') read = scout; // if correct format, passover spaces
+      if(!no_overlap(*scout, "\n;")) read = scout;      // if correct format, passover spaces
+      else if(*scout == '=') read = scout - 1;
+    } else if(!in_a_string && is_at_substring(read, "\n\n\n\n")) { // trim any '\n' sequences length > 3 down to 3
+      for(int i = 0; i < 3; ++i) *write++ = *read++;
+      scout = read;
+      while(*scout != '\0' && *scout == '\n') ++scout;
+      read = scout;
     }
     *write++ = *read++;
   }
@@ -637,6 +921,16 @@ bool is_at_substring(char *p, char *substr) {
 * OBJECT CONSTRUCTION FUNCTIONS
 ******************************************************************************/
 
+// returns whether member value is a dummy ctor -- ie a class name
+bool is_a_dummy_ctor(char *member_value) {
+  for(int i = 0; i < total_classes; ++i) {
+    if(is_at_substring(member_value, classes[i].class_name) 
+      && !VARCHAR(*(member_value + strlen(classes[i].class_name))))
+      return true;
+  }
+  return false;
+}
+
 // given a class index, returns an initialization brace for it's member values
 void mk_initialization_brace(char brace[], int class_index) {
   char *p = brace;
@@ -650,7 +944,13 @@ void mk_initialization_brace(char brace[], int class_index) {
           sprintf(p, "{0},"); // wrap empty (non-ptr) array/object/struct value in braces
       else if((j > 0 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
         sprintf(p, "0,"); 
-    } else sprintf(p, "%s,", classes[class_index].member_values[j]); // non-empty value
+    } else {
+      if(is_a_dummy_ctor(classes[class_index].member_values[j])) { // prefix dummy ctor names as needed
+        sprintf(p, "DC__DUMMY_"); 
+        p += strlen(p); 
+      } 
+      sprintf(p, "%s,", classes[class_index].member_values[j]);    // non-empty value
+    }
     p += strlen(p);
   }
   *p++ = '}';
@@ -660,18 +960,21 @@ void mk_initialization_brace(char brace[], int class_index) {
 // fills 'ctor_macros' string w/ macros for both single & array object constructions/initializations
 void mk_ctor_macros(char ctor_macros[], char *class_name) {
   // add macro for a single object construction instance
-  sprintf(ctor_macros, "#define DECLASS__%s_CTOR(DECLASS_THIS) ({DECLASS_THIS = DECLASS__%s_DFLT();", 
+  sprintf(ctor_macros, "#define DC__%s_CTOR(DC_THIS) ({DC_THIS = DC__%s_DFLT();", 
     class_name, class_name);
   int macro_idx = strlen(ctor_macros);
   // search for members that are also other class objects
   for(int l = 0; l < classes[total_classes].total_members; ++l) {
     if(classes[total_classes].member_object_class_name[l][0] != 0) { // member = class object
       // append macros to initialize any members that are class objects
-      if(classes[total_classes].member_is_array[l] && !classes[total_classes].member_is_pointer[l]) { // append arr ctor
-        sprintf(&ctor_macros[macro_idx], "\\\n\tDECLASS__%s_ARR(DECLASS_THIS.%s);", 
+      if(classes[total_classes].member_is_array[l]) { // append arr ctor
+        sprintf(&ctor_macros[macro_idx], "\\\n\tDC__%s_ARR(DC_THIS.%s);", 
           classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
-      } else if(!classes[total_classes].member_is_pointer[l]) {                                       // append 1 obj ctor
-        sprintf(&ctor_macros[macro_idx], "\\\n\tDECLASS__%s_CTOR(DECLASS_THIS.%s);", 
+      } else if(classes[total_classes].member_value_is_alloc[l]) {   // append 1 obj ctor
+        sprintf(&ctor_macros[macro_idx], "\\\n\tDC__%s_CTOR(*(DC_THIS.%s));", 
+          classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
+      } else if(!classes[total_classes].member_is_pointer[l]) {      // append 1 obj ctor
+        sprintf(&ctor_macros[macro_idx], "\\\n\tDC__%s_CTOR(DC_THIS.%s);", 
           classes[total_classes].member_object_class_name[l], classes[total_classes].member_names[l]);
       }
       macro_idx = strlen(ctor_macros);
@@ -687,15 +990,15 @@ void mk_ctor_macros(char ctor_macros[], char *class_name) {
   macro_idx = strlen(ctor_macros);
 
   // add macro for a an array of object constructions
-  sprintf(&ctor_macros[macro_idx], "\n#define DECLASS__%s_ARR(DECLASS_ARR) ({\\\n\
-  for(int DECLASS__%s_IDX=0;DECLASS__%s_IDX<(sizeof(DECLASS_ARR)/sizeof(DECLASS_ARR[0]));++DECLASS__%s_IDX)\\\n\
-    DECLASS__%s_CTOR(DECLASS_ARR[DECLASS__%s_IDX]);\\\n})", 
+  sprintf(&ctor_macros[macro_idx], "\n#define DC__%s_ARR(DC_ARR) ({\\\n\
+  for(int DC__%s_IDX=0;DC__%s_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__%s_IDX)\\\n\
+    DC__%s_CTOR(DC_ARR[DC__%s_IDX]);\\\n})", 
   class_name, class_name, class_name, class_name, class_name, class_name);
 
   // add a macro to invoke user-defined ctors for object arrays
   if(classes[total_classes].class_has_ctor) {
     macro_idx = strlen(ctor_macros);
-    sprintf(&ctor_macros[macro_idx], "\n#define DECLASS__%s_USERCTOR_ARR(DECLASS_ARR", class_name);
+    sprintf(&ctor_macros[macro_idx], "\n#define DC__%s_UCTOR_ARR(DC_ARR", class_name);
     macro_idx = strlen(ctor_macros);
     // if has args, sprintf arg for "__VA_ARGS__"
     if(classes[total_classes].class_has_ctor_args) {
@@ -703,31 +1006,49 @@ void mk_ctor_macros(char ctor_macros[], char *class_name) {
     }
     // sprintf loop to iterate over object array's individual objects
     sprintf(&ctor_macros[macro_idx], ") ({\\\n\
-  for(int DECLASS__%s_USERCTOR_IDX=0;DECLASS__%s_USERCTOR_IDX<(sizeof(DECLASS_ARR)/sizeof(DECLASS_ARR[0]));\
-++DECLASS__%s_USERCTOR_IDX)\\\n\
-    DECLASS_%s_(", class_name, class_name, class_name, class_name);
+  for(int DC__%s_UCTOR_IDX=0;DC__%s_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));\
+++DC__%s_UCTOR_IDX)\\\n\
+    DC_%s_(", class_name, class_name, class_name, class_name);
     macro_idx = strlen(ctor_macros);
     // if has args, sprintf arg for "__VA_ARGS__"
     if(classes[total_classes].class_has_ctor_args) { 
       sprintf(&ctor_macros[macro_idx], "__VA_ARGS__, "); macro_idx = strlen(ctor_macros);
     }
     // pass object in object array to user-defined ctor
-    sprintf(&ctor_macros[macro_idx], "&DECLASS_ARR[DECLASS__%s_USERCTOR_IDX]);\\\n})", class_name); 
+    sprintf(&ctor_macros[macro_idx], "&DC_ARR[DC__%s_UCTOR_IDX]);\\\n})", class_name); 
   }
 }
 
 // make global initializing function to assign default values
 void mk_class_global_initializer(char *class_global_initializer, char *class_name, char *initial_values_brace) {
-  sprintf(class_global_initializer, "\n%s DECLASS__%s_DFLT(){\n\t%s this=%s;\n\treturn this;\n}", 
+  sprintf(class_global_initializer, "\n%s DC__%s_DFLT(){\n\t%s this=%s;\n\treturn this;\n}", 
     class_name, class_name, class_name, initial_values_brace);
 }
 
+// prefixes any user invocations of a "dummy" class constructor w/ "DC__DUMMY_"
+int prefix_dummy_ctor_with_DC__DUMMY_(char *write, char *read) {
+  int dummy_ctor_len = 0, in_dummy_args_scope = 1;
+  bool in_a_string = false;
+  sprintf(write, "DC__DUMMY_");
+  write += strlen(write);
+  while(*read != '(') *write++ = *read++, ++dummy_ctor_len;
+  *write++ = *read++, ++dummy_ctor_len; // copy '('
+  while(*read != '\0' && in_dummy_args_scope > 0) { // copy dummy ctor args
+    if(*read == '"' && *(read-1) != '\\') in_a_string = !in_a_string;
+    if(!in_a_string && *read == '(')      ++in_dummy_args_scope; 
+    else if(!in_a_string && *read == ')') --in_dummy_args_scope;
+    *write++ = *read++, ++dummy_ctor_len;
+  }
+  return dummy_ctor_len;
+}
+
 /******************************************************************************
-* USER-DEFINED OBJECT CONSTRUCTOR PARSING FUNCTIONS
+* USER-DEFINED OBJECT CONSTRUCTOR (CTOR) PARSING FUNCTIONS
 ******************************************************************************/
 
 // returns whether object declaration is invoking a user-defined constructor
 // & fills the "user_ctor" string w/ the invocation if so
+// USED FOR DECLARATIONS IN METHODS/FCNS
 bool get_user_ctor(char *p, char *user_ctor, char *class_name, bool *is_fcn_returning_obj) {
   while(*p != '\0' && no_overlap(*p, "\n(;,=")) ++p;
   if(*p != '(') return false; // object not being constructed via user-defined ctor
@@ -761,26 +1082,31 @@ bool get_user_ctor(char *p, char *user_ctor, char *class_name, bool *is_fcn_retu
   // create user-defined ctor invocation
   if(objects[total_objects-1].is_class_array) { // invoke ctor for each object in object array declaration
     if(strlen(ctor_vals) > 0)
-      sprintf(user_ctor, "DECLASS__%s_USERCTOR_ARR(%s, %s);",class_name,objects[total_objects-1].object_name,ctor_vals);
-    else sprintf(user_ctor, "DECLASS__%s_USERCTOR_ARR(%s);", class_name, objects[total_objects-1].object_name);
+      sprintf(user_ctor, "DC__%s_UCTOR_ARR(%s, %s);",class_name,objects[total_objects-1].object_name,ctor_vals);
+    else sprintf(user_ctor, "DC__%s_UCTOR_ARR(%s);", class_name, objects[total_objects-1].object_name);
+  } else if(objects[total_objects-1].is_class_pointer) { // invoke ctor for single object declaration
+    if(strlen(ctor_vals) > 0)
+      sprintf(user_ctor, "DC_%s_(%s, %s);", class_name, ctor_vals, objects[total_objects-1].object_name);
+    else sprintf(user_ctor, "DC_%s_(%s);", class_name, objects[total_objects-1].object_name);
   } else {                                      // invoke ctor for single object declaration
     if(strlen(ctor_vals) > 0)
-      sprintf(user_ctor, "DECLASS_%s_(%s, &%s);", class_name, ctor_vals, objects[total_objects-1].object_name);
-    else sprintf(user_ctor, "DECLASS_%s_(&%s);", class_name, objects[total_objects-1].object_name);
+      sprintf(user_ctor, "DC_%s_(%s, &%s);", class_name, ctor_vals, objects[total_objects-1].object_name);
+    else sprintf(user_ctor, "DC_%s_(&%s);", class_name, objects[total_objects-1].object_name);
   }
   return true;
 }
 
 // check for a user-defined constructor invocation
-char *check_for_ctor_obj(char*end,char*struct_buff_idx,char*class_instance,int*class_size,int*struct_inc,bool*found_ctor){
+// USED FOR DECLARATIONS IN CLASS PROTOTYPES
+char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct_inc,bool*found_ctor){
   char *is_ctor = end;
   bool in_a_string = false;
   *found_ctor = false;
   *struct_inc = 0;
   // from initial '(', traverse the rest of the line & confirm ends w/ ';' not '{'
   while(*is_ctor != '\0' && *is_ctor != '\n') { 
-    if(*end == '"' && *(end-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && (*is_ctor == ';' || *is_ctor == '{')) break; // either method or ctor
+    if(*is_ctor == '"' && *(is_ctor-1) != '\\') in_a_string = !in_a_string;
+    if(!in_a_string && (*is_ctor == ';' || *is_ctor == '{')) break; // either ctor or method
     ++is_ctor;
   }
   
@@ -795,6 +1121,17 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,char*class_instance,int*c
     while(no_overlap(*ctoring_invokers, "\n;")) --ctoring_invokers;               // move to the end of the line
     while(!VARCHAR(*ctoring_invokers)) ++ctoring_invokers;                        // move to class name "type"
     while(VARCHAR(*ctoring_invokers))  *ctored_class_ptr++ = *ctoring_invokers++; // copy class of object being ctor'd
+    
+    *ctored_class_ptr = '\0';
+    // if at "immortal" prefix: empty "ctored_class" & re-scrape the class name again but AFTER the keyword
+    if(*IMMORTALITY && strcmp(ctored_class, "immortal") == 0) { 
+      FLOOD_ZEROS(ctored_class, 75); 
+      ctored_class_ptr = ctored_class;
+      while(!VARCHAR(*ctoring_invokers)) ++ctoring_invokers; // skip space between "immortal" & class name
+      while(VARCHAR(*ctoring_invokers))                      // copy class name "type" after "immortal" keyword
+        *ctored_class_ptr++ = *ctoring_invokers++;
+    }
+
     while(!VARCHAR(*ctoring_invokers)) ++ctoring_invokers;                        // move to object name
     while(VARCHAR(*ctoring_invokers))  *ctored_obj_ptr++ = *ctoring_invokers++;   // copy object name
     *ctored_class_ptr = '\0', *ctored_obj_ptr = '\0';
@@ -805,18 +1142,36 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,char*class_instance,int*c
     while(IS_WHITESPACE(*check_array)) --check_array;
     bool array_ctor = (*check_array == ']');
     if(array_ctor) 
-      sprintf(ctor_fcn_assignment, " = DECLASS__%s_USERCTOR_ARR", ctored_class); 
-    else sprintf(ctor_fcn_assignment, " = DECLASS_%s_", ctored_class); 
-    
+      sprintf(ctor_fcn_assignment, " = DC__%s_UCTOR_ARR", ctored_class); 
+    else sprintf(ctor_fcn_assignment, " = DC_%s_", ctored_class); 
+
+    // check whether object ctoring is a ptr
+    char *check_ptr = check_array;
+    if(array_ctor) while(*check_ptr != '[') --check_ptr; // skip past array subscript if present
+    while(no_overlap(*check_ptr, "\n*{};")) --check_ptr;
+    bool ptr_ctored = (*check_ptr == '*');
+
+    // check whether obj is a pointer being ctor'd & alloc'd at once 
+    // (causes "obj = ctor = malloc" and can make "LAST_ARG" point to "malloc" args & 
+    // splice "DC_THIS.%s" in the wrong fcn)
+    char *allocd_ptr_obj = check_no_ctor_args;
+    while(no_overlap(*allocd_ptr_obj, "\n=")) --allocd_ptr_obj; // check if supposed "ctor" is assigned
+    if(*allocd_ptr_obj == '=') {
+      // check if assigned fcn is preceded by another fcn (ie if "alloc" preceded by some ctor)
+      while(no_overlap(*allocd_ptr_obj, "\n)")) --allocd_ptr_obj; 
+      if(*allocd_ptr_obj == ')') check_no_ctor_args = allocd_ptr_obj; // actual ctor preceding allocation
+    }
+
     // check whether ctor default value has args
     while(*check_no_ctor_args != ')') --check_no_ctor_args;         // find end of ctor
     --check_no_ctor_args;                                           // move past last ')'
     while(IS_WHITESPACE(*check_no_ctor_args)) --check_no_ctor_args; // if directly preceded by '(' ctor = empty
-    if(*check_no_ctor_args == '(') {                                // splice "&DECLASS_THIS.objName" to end of ctor args
-      if(array_ctor)      sprintf(appended_ctor_object, "DECLASS_THIS.%s", ctored_obj);
-      else                sprintf(appended_ctor_object, "&DECLASS_THIS.%s", ctored_obj);
-    } else if(array_ctor) sprintf(appended_ctor_object, "DECLASS_THIS.%s, ", ctored_obj);
-    else                  sprintf(appended_ctor_object, ", &DECLASS_THIS.%s", ctored_obj);
+    if(*check_no_ctor_args == '(') {                                // splice "&DC_THIS.objName" to end of ctor args
+      if(array_ctor||ptr_ctored) sprintf(appended_ctor_object, "DC_THIS.%s", ctored_obj);
+      else                       sprintf(appended_ctor_object, "&DC_THIS.%s", ctored_obj);
+    } else if(array_ctor)        sprintf(appended_ctor_object, "DC_THIS.%s, ", ctored_obj);
+    else if(ptr_ctored)          sprintf(appended_ctor_object, ", DC_THIS.%s", ctored_obj);
+    else                         sprintf(appended_ctor_object, ", &DC_THIS.%s", ctored_obj);
     char *LAST_ARG = check_no_ctor_args, *FIRST_ARG = end;
     
     // confirm class of object with default ctor value exists
@@ -826,12 +1181,19 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,char*class_instance,int*c
     if(is_a_defined_class == total_classes + 1) {
       fprintf(stderr, "-:- WARNING: UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d -:-\n", __func__, __LINE__);
       fprintf(stderr, "-:- EXPECTED OBJECT CTOR FOR MEMBER: \"%s\" IN CLASS: \"%s\" -:-\n", ctored_obj, ctored_class);
-      fprintf(stderr, "-:- CHARACTER NUMBER IN FILE BEING PARSED: %ld -:-\n", end - class_instance + 1);
-      fprintf(stderr, "-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+      printf("-:- CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO -:-\n\n>>> ");
+      int continueDeclassification;
+      scanf("%d", &continueDeclassification);
+      if(continueDeclassification == 1)
+        printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+      else {
+        printf("\n\n>> Terminating Program.\n\n");
+        exit(EXIT_SUCCESS); // having been intentionally terminated
+      }
       return end;
     }
 
-    // shift & splice in last "&DECLASS_THIS.objName" arg && the ctor functional invocation by assignment
+    // shift & splice in last "&DC_THIS.objName" arg && the ctor functional invocation by assignment
     char *ctor_fcn_assign_ptr = ctor_fcn_assignment, *ctor_append_ptr = appended_ctor_object;
     int ctor_fcn_assign_len   = strlen(ctor_fcn_assignment);
     int ctor_appened_arg_len  = strlen(appended_ctor_object);
@@ -848,7 +1210,7 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,char*class_instance,int*c
       *struct_buff_idx++ = *ctor_fcn_assign_ptr++, *struct_inc += 1;
     }
 
-    // skip to where ought to splice in last "&DECLASS_THIS.objName" ctor arg
+    // skip to where ought to splice in last "&DC_THIS.objName" ctor arg
     // "+ctor_fcn_assign_len+1" accounts for shifted distance & to move "end" 1 past 1st/last "arg_position"
     // as whether is/isn't an object array ctor
     char *arg_position = (array_ctor) ? FIRST_ARG : LAST_ARG;
@@ -856,17 +1218,257 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,char*class_instance,int*c
       *struct_buff_idx++ = *end++, *class_size += 1, *struct_inc += 1;
     endOfFile = end + strlen(end) + ctor_appened_arg_len; // end of the file + appended last arg
 
-    // shift file up then splice in last "&DECLASS_THIS.objName" ctor arg
-    // + 1 to also shift over char currently in last arg's position to make room for splicing in "&DECLASS_THIS.objName"
+    // shift file up then splice in last "&DC_THIS.objName" ctor arg
+    // + 1 to also shift over char currently in last arg's position to make room for splicing in "&DC_THIS.objName"
     while(endOfFile - ctor_appened_arg_len + 1 != end) { 
       *endOfFile = *(endOfFile - ctor_appened_arg_len); --endOfFile;
     }
-    while(*ctor_append_ptr != '\0') { // splice in ctor's last "&DECLASS_THIS.objName" arg
+    while(*ctor_append_ptr != '\0') { // splice in ctor's last "&DC_THIS.objName" arg
       *end++ = *ctor_append_ptr, *class_size += 1;
       *struct_buff_idx++ = *ctor_append_ptr++, *struct_inc += 1;
     }
   }
   return end;
+}
+
+/******************************************************************************
+* OBJECT ARRAY DESTRUCTION-MACRO CREATION FUNCTION
+******************************************************************************/
+
+// fills 'dtor_array_macro' w/ macro for array object destruction via user's own defined dtor
+void mk_dtor_array_macro(char dtor_array_macro[], char *class_name) {
+  // sprintf loop to iterate over object array's individual objects to be dtor'd
+  sprintf(dtor_array_macro, "#define DC__%s_UDTOR_ARR(DC_ARR) ({\\\n\
+  for(int DC__%s_UDTOR_IDX=0;DC__%s_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));\
+++DC__%s_UDTOR_IDX)\\\n\t\tDC__NOT_%s_(&DC_ARR[DC__%s_UDTOR_IDX]);\\\n})",
+  class_name, class_name, class_name, class_name, class_name, class_name);
+}
+
+/******************************************************************************
+* USER-DEFINED OBJECT DESTRUCTOR (DTOR) PARSING & SPLICING FUNCTIONS
+******************************************************************************/
+
+// shifts up buffer to "splice_here"'s position in order to splice in a dtor
+int shiftSplice_dtor_in_buffer(char *dtor, char *splice_here) {
+  // check whether object already dtored (prevents redundant dtors,
+  // generally occurs when user explicitely invokes a dtor then declass.c 
+  // to splice in one at the end of the scope)
+  int current_scope = 1;
+  char *check_ifdef_already = splice_here;
+  bool in_a_string = false;
+  while(current_scope > 0) {
+    if(*check_ifdef_already == '"' && *(check_ifdef_already-1) != '\\') in_a_string = !in_a_string;
+    if(!in_a_string) {
+      if(*check_ifdef_already == '{' && *(check_ifdef_already-1) != '\'')      --current_scope;
+      else if(*check_ifdef_already == '}' && *(check_ifdef_already-1) != '\'') ++current_scope;
+      if(current_scope <= 0) break;
+      // check if dtor already defined in scope & not prior to a return 
+      // (return shouldn't play a factor if returning from the same scope but just in case)
+      if(current_scope == 1 && is_at_substring(check_ifdef_already, dtor)
+        && !is_at_substring(check_ifdef_already + strlen(dtor), "return"))
+        return 1; // returns 1 to get past '}' or 'r'eturn
+    }
+    --check_ifdef_already;
+  }
+
+  // splice in dtor if not already defined in scope at the current position
+  char temp[MAX_FILESIZE];
+  FLOOD_ZEROS(temp, MAX_FILESIZE);
+  sprintf(temp, "%s%s", dtor, splice_here); // sprintf in dtor + buffer after scope ending
+
+  int length = strlen(splice_here);
+  FLOOD_ZEROS(splice_here, length); // wipe buffer after out-of-scope
+  sprintf(splice_here, "%s", temp); // splice in "dtor" + rest of "temp" buffer of string out of scope
+  return strlen(dtor) + 1;          // to get past '}' or "return"
+}
+
+// checks whether returned item is the object in question (thus don't invoke class' dtor)
+bool object_is_returned(char *returnedItem) {
+  while(VARCHAR(*returnedItem))       ++returnedItem; // skip "return"
+  while(IS_WHITESPACE(*returnedItem)) ++returnedItem; // skip space after "return" keyword
+  if(*returnedItem == '*')            ++returnedItem; // skip over dereferencing operator
+  return (is_at_substring(returnedItem, objects[total_objects-1].object_name) 
+    && !VARCHAR(*(returnedItem+strlen(objects[total_objects-1].object_name))));
+}
+
+// searches for objects in the "?:" return condition results
+// "cond_idx" returns idx of object if found, & cond_idx = total_objects if not found
+void get_if_else_object_idxs(char *return_cond, int *cond_idx) {
+  for(*cond_idx = 0; *cond_idx < total_objects; *cond_idx += 1) {
+    char *find_obj = return_cond;
+    while(*find_obj != '\0') {
+      if(is_at_substring(find_obj, objects[*cond_idx].object_name)
+        && (find_obj == return_cond || !VARCHAR(*(find_obj-1))) 
+        && !VARCHAR(*(find_obj+strlen(objects[*cond_idx].object_name)))) {
+        // trigger invalid-object in calling function IF obj = immortal (all args default to immortal)
+        if(objects[*cond_idx].is_immortal) *cond_idx = total_objects;
+        return;
+      }
+     ++find_obj;
+   }
+  }
+}
+
+// returns whether "dtor condition" for when handling "?:" one-line conditionals has been spliced in earlier already
+bool unique_dtor_condition(char *returnFrom, char *dtor_condition) {
+  // if "max_iter" is hit some joker is writing their entire class without pressing "return",
+  // if that joker is you I hope the thought of undefined behavior gets you jazzed up because
+  // lord almighty if so you're in for quite a treat when your compiler gets a stroke trying to run this
+  int iterations = 0, max_iter = strlen(dtor_condition) * 4 + 10; 
+  while(*returnFrom != '\n' && iterations-- < max_iter) {
+    if(is_at_substring(returnFrom, dtor_condition)) return false; // don't splice in redundant dtor conditions
+    --returnFrom;
+  }
+  return true;
+}
+
+// checks for "?:" conditional returning 2 different objects to determine which (if any) to dtor
+int one_line_conditional(char *cond) {
+  char *splice_here = cond;
+  int shift_total = 0;
+  while(VARCHAR(*cond)) ++cond; // skip "return"
+  char condition[200], return_if[200], return_else[200], else_dtor[200], if_dtor[200];
+  FLOOD_ZEROS(condition, 200); FLOOD_ZEROS(return_if, 200); FLOOD_ZEROS(return_else, 200);
+  FLOOD_ZEROS(else_dtor, 200); FLOOD_ZEROS(if_dtor, 200);
+  char *write = condition;
+  bool in_a_string = false;
+  // copy condition, the "if" return, & the "else" return
+  while(*cond != '\0') {
+    if(*cond == '"' && *(cond-1) != '\\') in_a_string = !in_a_string;
+    if(!in_a_string && *cond == ';') {
+      *write = '\0';  break; // end of return's line
+    } else if(!in_a_string && *cond == '?') { // start copying first return value
+      *write = '\0'; write = return_if;
+    } else if(!in_a_string && *cond == ':') {
+      *write = '\0'; write = return_else;
+    }
+    *write++ = *cond++;
+  }
+  // if return is a "?:" one-line condition
+  if(strlen(return_else) > 0) { // found a return in the "?:" format - now determien whether it returns objects
+    int if_idx = 0, else_idx = 0;
+    get_if_else_object_idxs(return_if, &if_idx);
+    get_if_else_object_idxs(return_else, &else_idx);
+    if(if_idx == total_objects && else_idx == total_objects) return 0; // no non-pointer mortal objects returned
+    // splice in reverse conditions invoking appropriate object destructors if object not being returned
+    if(if_idx < total_objects) { 
+      if(objects[if_idx].is_class_array)
+        sprintf(if_dtor, "if(!(%s)){DC__%s_UDTOR_ARR(%s);}", 
+          condition, objects[if_idx].class_name, objects[if_idx].object_name);
+      else if(objects[if_idx].is_class_pointer) 
+        sprintf(if_dtor, "if(!(%s)){DC__NOT_%s_(%s);}", 
+          condition, objects[if_idx].class_name, objects[if_idx].object_name);
+      else sprintf(if_dtor, "if(!(%s)){DC__NOT_%s_(&%s);}", 
+            condition, objects[if_idx].class_name, objects[if_idx].object_name);
+      if(unique_dtor_condition(splice_here, if_dtor)) { // only splice in dtor conditional if not done so already
+        shift_total += (shiftSplice_dtor_in_buffer(if_dtor, splice_here) - 1);
+        splice_here += shift_total;
+      }
+    }
+    if(else_idx < total_objects) { 
+      if(objects[else_idx].is_class_array)
+        sprintf(else_dtor, "if(%s){DC__%s_UDTOR_ARR(%s);}", 
+          condition, objects[else_idx].class_name, objects[else_idx].object_name);
+      else if(objects[else_idx].is_class_pointer) 
+        sprintf(else_dtor, "if(%s){DC__NOT_%s_(%s);}", 
+          condition, objects[else_idx].class_name, objects[else_idx].object_name);
+      else sprintf(else_dtor, "if(%s){DC__NOT_%s_(&%s);}", 
+            condition, objects[else_idx].class_name, objects[else_idx].object_name);
+      if(unique_dtor_condition(splice_here, else_dtor)) // only splice in dtor conditional if not done so already
+        shift_total += (shiftSplice_dtor_in_buffer(else_dtor, splice_here) - 1);
+    }
+  }
+  return shift_total;
+}
+
+// don't add a dtor prior a '}' brace immdiately following a "return"
+int return_then_immediate_exit(char *immediate_exit) {
+  int increment = 0;
+  while(*immediate_exit != '\0' && *immediate_exit != ';') ++immediate_exit, ++increment; // skip up to ';'
+  ++immediate_exit, ++increment;                                                          // skip past ';'
+  while(IS_WHITESPACE(*immediate_exit)) ++immediate_exit, ++increment;                    // skip any '\n's/tabs/spaces
+  return (*immediate_exit == '}') ? (increment + 1) : 0;                                  // "+1" to skip past '}'
+}
+
+// splices object dtor (once object created) into buffer being READ from (picked up later on)
+void add_object_dtor(char *splice_here) {
+  if(!objects[total_objects-1].class_has_dtor || objects[total_objects-1].is_immortal) return;
+  bool in_a_string = false;
+  int in_scope = 0;
+  char dtor[1000];
+  FLOOD_ZEROS(dtor, 1000);
+
+  // set up tracker to determine whether or not to destroy elt
+  char dtor_flag[300];
+  FLOOD_ZEROS(dtor_flag, 300);
+  while(*splice_here != '\0') { // skip past object declaration
+    if(*splice_here == '"' && *(splice_here-1) != '\\') in_a_string = !in_a_string;
+    if(!in_a_string && *(splice_here-1) == ';') break;
+    ++splice_here;
+  }
+  // splice in flag for whether object has been destroyed or not
+  sprintf(dtor_flag, " int DC_%s=0;", objects[total_objects-1].object_name);
+  splice_here += shiftSplice_dtor_in_buffer(dtor_flag, splice_here);
+
+  // determine which type of destructor to splice in (single or array)
+  if(objects[total_objects-1].is_class_array)
+    sprintf(dtor, "if(!DC_%s){DC__%s_UDTOR_ARR(%s);DC_%s=1;}\n", objects[total_objects-1].object_name,
+      objects[total_objects-1].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
+  else if(objects[total_objects-1].is_class_pointer)
+    sprintf(dtor, "if(!DC_%s){DC__NOT_%s_(%s);DC_%s=1;}\n", objects[total_objects-1].object_name,
+      objects[total_objects-1].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
+  else 
+    sprintf(dtor, "if(!DC_%s){DC__NOT_%s_(&%s);DC_%s=1;}\n", objects[total_objects-1].object_name,
+      objects[total_objects-1].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
+
+  // find where current scope ends
+  while(*splice_here != '\0' && in_scope >= 0) {
+    if(*splice_here == '"' && *(splice_here-1) != '\\') in_a_string = !in_a_string; // register whether in a string
+    // check whether entering/exiting a scope
+    if(!in_a_string) {
+      if(*splice_here == '{') ++in_scope;
+      else if(*splice_here == '}') {
+        --in_scope;
+        if(in_scope < 0) {
+          shiftSplice_dtor_in_buffer(dtor, splice_here);
+          return;
+        }
+      } else if(is_at_substring(splice_here,"return") 
+        && !VARCHAR(*(splice_here-1)) && !VARCHAR(*(splice_here+strlen("return")))) {
+        // if !*DTOR_RETURN, splice in dtors as needed if return case: "return (condition) ? object1 : object 2;"
+        int one_line_cond = (*DTOR_RETURN) ? 0 : one_line_conditional(splice_here);
+        if(one_line_cond > 0) {
+          splice_here += one_line_cond;
+          int immediate_exit = return_then_immediate_exit(splice_here);
+          if(immediate_exit > 0) { --in_scope; if(in_scope < 0) return; splice_here += immediate_exit; }
+          ++splice_here;
+          continue;
+        }
+        // if !*DTOR_RETURN, don't dtor an object being returned
+        if(!(*DTOR_RETURN) && object_is_returned(splice_here)) { 
+          int immediate_exit = return_then_immediate_exit(splice_here);
+          if(immediate_exit > 0) { --in_scope; if(in_scope < 0) return; splice_here += immediate_exit; }
+          ++splice_here; 
+          continue; 
+        } 
+        // splice in DTOR prior to "return", NOT changing scope status
+        splice_here += shiftSplice_dtor_in_buffer(dtor, splice_here);
+        // don't add a redundant dtor prior a '}' brace immediately following a "return"
+        int immediate_exit = return_then_immediate_exit(splice_here);
+        if(immediate_exit > 0) { --in_scope; if(in_scope < 0) return; splice_here += immediate_exit; }
+      } else if(*splice_here == '~') { // check is user explicitely invoked destructor, ie: "~objName();"
+        if(is_at_substring(splice_here + 1, objects[total_objects-1].object_name)
+          && !VARCHAR(*(splice_here + 1 + strlen(objects[total_objects-1].object_name)))) { // user destroyed obj
+          char *whiteout = splice_here;
+          while(*whiteout != '\0' && *whiteout != ';' && *whiteout != ':')                  // whitespace dtor invocation
+            *whiteout++ = ' ';
+          if(*whiteout == ';') *whiteout = ' '; // whitespace last ';' (not ':' if in "?:" conditional)
+          splice_here += shiftSplice_dtor_in_buffer(dtor, splice_here);
+        }
+      }
+    }
+    ++splice_here;
+  }
 }
 
 /******************************************************************************
@@ -893,7 +1495,7 @@ int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_meth
             p += invoker_size, method_name_size += invoker_size;
           }
           method_name_size++;                                                  // for 1st char ('%c' in sprintf below)
-          sprintf(new_fcn_call, "%cDECLASS_%s_%s", first_char, objects[i].class_name, invoked_member_name);
+          sprintf(new_fcn_call, "%cDC_%s_%s", first_char, objects[i].class_name, invoked_member_name);
 
           // whether method is invoked within another method, but splice in either way
           if(is_nested_method)
@@ -922,7 +1524,7 @@ void splice_in_prepended_method_name(char*new_fcn_call,char*p,int i,char*NEW_FIL
   *j = strlen(NEW_FILE);
 
   // splice in prefixed method name & add invoker's address to end of arguments
-  APPEND_BUFF_OR_STR_TO_NEW_FILE(new_fcn_call);
+  APPEND_STR_TO_NEW_FILE(new_fcn_call);
   while(*p != '\0' && *p != ')') NEW_FILE[(*j)++] = *p++, (*method_name_size)++;
   if(*(p - 1) != '(') NEW_FILE[(*j)++] = ',', NEW_FILE[(*j)++] = ' ';
   if(objectName_is_pointer) sprintf(&NEW_FILE[*j], "%s", objectChain);  // splice in ptr obj address
@@ -1067,10 +1669,10 @@ void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int 
   char invoc_punc[75];      // stores invocation punctuation IN REVERSE (ie '->' stored as '>-')
   FLOOD_ZEROS(invoc_punc, 75);
   int index = 0;
-  while(VARCHAR(*chain_tail)) --chain_tail;                         // skip method name
-  while(!VARCHAR(*chain_tail) && no_overlap(*chain_tail, "[]"))     // cpy/skip method invocation punct
+  while(VARCHAR(*chain_tail)) --chain_tail;                          // skip method name
+  while(!VARCHAR(*chain_tail) && no_overlap(*chain_tail, "[]"))      // cpy/skip method invocation punct
     invoc_punc[index++] = *chain_tail--;
-  ++chain_tail;                                                     // move to 1 char past the chain's end
+  ++chain_tail;                                                      // move to 1 char past the chain's end
   invoc_punc[index] = '\0'; // determines 'chainless'/single-object invocation ptr status
 
   // save object method invocation chain
@@ -1104,7 +1706,7 @@ void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int 
     strcpy(objectChain, prefixed_objectChain);
   }
 
-  // determine whether outermost object is a ptr via its punction of method invocation
+  // determine whether outermost object is a ptr via its method invocation punctuation
   int tries = 0;
   char *ptr_status;
   while(tries < 2) { // try searching 'objectChain' then 'invoc_punc' for pointer indicators
@@ -1163,12 +1765,18 @@ int prefix_local_members_and_cpy_method_args(char*end,char*write_to_buffer,char 
 ******************************************************************************/
 
 // stores an object's name & associated class name/type in global struct
-bool store_object_info(char *s) {
-  bool not_an_arg = true, is_fcn_assignment = false;
+// and checks whther currently at a so-called "dummy ctor" which only returns an arg
+// total_classes_increment: -1 = arg (no dtor) 
+//                           0 = in fcn (total_classes)      (dtor if not returned) 
+//                           1 = in method (total_classes+1) (dtor if not returned)
+bool store_object_info(char *s, int total_classes_increment, bool *dummy_ctor) {
+  bool not_an_arg = true, is_fcn_assignment = false, has_dtor = false, is_alloced_class_pointer = false;
   char *q = s, *p = s, object_name[75], class_type_name[75];
   FLOOD_ZEROS(object_name, 75); 
   FLOOD_ZEROS(class_type_name, 75);
   int i = 0, j = 0;
+  *dummy_ctor = false;
+
   while(*q != '\0' && *q != ';') if(*q++ == ')') { not_an_arg = false; break; } // determine if arg
   // determine whether object is assigned a value by a fcn 
   // OR initialized by user-defined ctor
@@ -1178,22 +1786,75 @@ bool store_object_info(char *s) {
     if(is_fcn_assignment) {
       q = s;
       while(*q != '\0' && no_overlap(*q, ";,)")) if(*q++ == '(' || *q++ == '=') { is_fcn_assignment = true; break; }
-      not_an_arg = is_fcn_assignment;
+      not_an_arg = is_fcn_assignment; // an obj assigned a fcn return value is NOT an obj declaration as an arg
     }
   }
-  while(!IS_WHITESPACE(*p)) class_type_name[i++] = *p++; p++; // skip class_type declaration
+
+  // determine whether object is prefixed with "immortal" keyword (never invokes class dtor if tagged "immortal")
+  bool is_immortal = false;
+  if(*IMMORTALITY) {
+    char *check_immortal = s - 1;                                    // start 1 position before class name type
+    while(IS_WHITESPACE(*check_immortal) && *check_immortal != '\n') // move past the space btwn "immortal' '<type>"
+      --check_immortal;
+    while(VARCHAR(*check_immortal)) --check_immortal;                // move in front of possible "immortal" keyword
+    ++check_immortal;                                                // move to first letter
+    if(is_at_substring(check_immortal, "immortal") && !VARCHAR(*(check_immortal + strlen("immortal"))))
+      is_immortal = true;
+  }
+
+  // objects passed as arguments are default considered immortal 
+  // (no dtor for them in fcn passed to, only in fcn passed from)
+  if(!not_an_arg) is_immortal = true;
+
+  // get object's class name & other attributes
+  while(!IS_WHITESPACE(*p) && no_overlap(*p, "*(")) // skip class_type declaration
+    class_type_name[i++] = *p++; 
+  if(IS_WHITESPACE(*p)) ++p; // move to object name (checks here in case "className*objName;")
   bool is_class_pointer = false, is_class_array = false;
-  if(*p == '*') is_class_pointer = true, p++;                 // check if object == class pointer
-  while(VARCHAR(*p)) object_name[j++] = *p++;                 // store object's name, class, & ptr status
-  if(*p == '[') is_class_array = true;                        // check if object == class array
+
+  // check if currently at a so-called "dummy ctor" being invoked to return an object
+  if(*p == '(') {
+    *dummy_ctor = true;
+    return true;
+  }
+
+  if(*p == '*') is_class_pointer = true, p++;        // check if object == class pointer
+  // determine whether pointer object have been alloc'd memory (if so init w/ dflt vals)
+  if(is_class_pointer && is_fcn_assignment) {
+    char *check_alloc = p; 
+    while(*check_alloc != '=' && *check_alloc != ';') ++check_alloc; // move to to the assignment
+    if(*check_alloc == '=') { // is a potential assignment & not a ctor (as "is_fcn_assignment" also repns ctors)
+      ++check_alloc;                                    // skip '='
+      while(IS_WHITESPACE(*check_alloc)) ++check_alloc; // skip optional space between '=' & allocation
+      if(is_an_alloc_fcn(check_alloc))                  // check if pointer being allocated memory
+        is_alloced_class_pointer = true;
+    }
+  }
+
+  while(VARCHAR(*p)) object_name[j++] = *p++;           // store object's name, class, & ptr status
+  if(*p == '[') is_class_array = true;                  // check if object == class array
   object_name[j] = '\0', class_type_name[i] = '\0';
   if(strlen(object_name) == 0 || class_type_name[strlen(class_type_name)-1] == ',') return false; // prototype fcn arg
   strcpy(objects[total_objects].object_name, object_name);
   strcpy(objects[total_objects].class_name, class_type_name);
   objects[total_objects].is_class_pointer = is_class_pointer;
+  objects[total_objects].is_alloced_class_pointer = is_alloced_class_pointer;
   objects[total_objects].is_class_array = is_class_array;
+  objects[total_objects].is_immortal = is_immortal;
+
+  // determine whether object's class uses a dtor (default false if object == an arg tho)
+  if(total_classes_increment != -1 && not_an_arg) // object declared != arg
+    for(int k = 0; k < total_classes + total_classes_increment; ++k)
+      if(strcmp(classes[k].class_name, class_type_name) == 0) {
+        has_dtor = classes[k].class_has_dtor;
+        break;
+      }
+  objects[total_objects].class_has_dtor = has_dtor;
   total_objects++;
-  return (!is_class_pointer && not_an_arg); // don't pre-init pointers nor arguments
+
+  // don't pre-init dflt vals to arguments 
+  // (nor pointers w/o allocated memory, but such is handled externally)
+  return not_an_arg;
 }
 
 /******************************************************************************
@@ -1216,47 +1877,65 @@ void get_class_name(char *s, char *class_name) {
   *name = '\0';
 }
 
-// checks whether or not class already has a user-defined ctor, & throws error if so
-void confirm_only_one_ctor(char *class_name) {
+// checks whether or not class already has a user-defined ctor/dtor, & throws error if so
+void confirm_only_one_cdtor(char *class_name, char*structor_name, char*structor_type) {
   for(int i = 0; i < classes[total_classes].total_members; ++i)
-    if(strcmp(classes[total_classes].member_names[i], "DECLASS__constructor") == 0) {
-      fprintf(stderr, "\n-:- ERROR: MORE THAN 1 CONSTRUCTOR FOR CLASSNAME \"%s\" FOUND! -:-", class_name);
-      fprintf(stderr, "\n-:-        NO FUNCTION OVERLOADING, TERMINATING PROGRAM        -:-\n\n");
+    if(strcmp(classes[total_classes].member_names[i], structor_name) == 0) {
+      fprintf(stderr, "\n-:- ERROR: MORE THAN 1 %s FOR CLASSNAME \"%s\" FOUND! -:-", structor_type, class_name);
+      fprintf(stderr, "\n-:- NO FUNCTION OVERLOADING, TERMINATING DECLASS.C PROGRAM -:-\n\n");
       exit(EXIT_FAILURE);
     }
 }
 
-// parse & prepend function name w/ class (now struct) name, & return 
-// whether method is user-defined class constructor
-bool get_prepended_method_name(char *s, char *class_name, char *prepended_method_name) {
-  char method_name[75], ctor_name[75];
-  FLOOD_ZEROS(method_name, 75); FLOOD_ZEROS(ctor_name, 75);
-  char *p = s, *q, *name = method_name, *ctor = ctor_name;
-  bool method_is_ctor = false;
+// parse & prepend function name w/ class (now struct) name, & determine 
+// whether method is user-defined class constructor/destructor
+void get_prepended_method_name(char*s,char*class_name,char*prepended_method_name,bool*method_is_ctor,bool*method_is_dtor){
+  char method_name[75], cdtor_name[75], structor_name[30], structor_type[30];
+  char structor_invoker[200];
+  FLOOD_ZEROS(method_name, 75);   FLOOD_ZEROS(cdtor_name, 75);
+  FLOOD_ZEROS(structor_name, 30); FLOOD_ZEROS(structor_type, 30);
+  FLOOD_ZEROS(structor_invoker, 200);
+  char *p = s, *q, *name = method_name, *cdtor = cdtor_name;
+  *method_is_ctor = false, *method_is_dtor = false;
   while(*p != '\0' && IS_WHITESPACE(*p)) p++; p++; // skip tab
 
-  // check for whether method is user-defined class ctor (typeless fcn w/ same name as class)
-  q = p - 1;
-  while(*q != ' ' && *q != '(') *ctor++ = *q++;         // "type" if *q == ' ' && "class_name" if == '('
-  *ctor = '\0';
-  if(*q == '(' && strcmp(ctor_name, class_name) == 0) { // no type & fcn name == class_name: method = ctor
-    confirm_only_one_ctor(class_name);
-    sprintf(prepended_method_name, "DECLASS_%s_", class_name);
-    strcpy(classes[total_classes].method_names[classes[total_classes].total_methods], "DECLASS__constructor");
-    method_is_ctor = classes[total_classes].class_has_ctor = true;
-    if(*(q + 1) != ')') classes[total_classes].class_has_ctor_args = true;
+  // check for whether method is user-defined class dtor or ctor (typeless fcn 
+  // w/ same name as class, prefixed w/ '~' if its a destructor (dtor))
+  if(*(p-1) == '~') { // possible destructor
+    strcpy(structor_name, "DC__destructor");
+    strcpy(structor_type, "DESTRUCTOR");
+    sprintf(structor_invoker, "DC__NOT_%s_", class_name);
+    q = p;
+  } else {            // possible constructor
+    strcpy(structor_name, "DC__constructor");
+    strcpy(structor_type, "CONSTRUCTOR");
+    sprintf(structor_invoker, "DC_%s_", class_name);
+    q = p - 1;
+  }
+
+  while(*q != ' ' && *q != '(') *cdtor++ = *q++;         // "type" if *q == ' ' && "class_name" if == '('
+  *cdtor = '\0';
+  if(*q == '(' && strcmp(cdtor_name, class_name) == 0) { // no type & fcn name == class_name: method = ctor/dtor
+    confirm_only_one_cdtor(class_name, structor_name, structor_type);
+    strcpy(prepended_method_name, structor_invoker);
+    strcpy(classes[total_classes].method_names[classes[total_classes].total_methods], structor_name);
+    if(*(p-1) == '~')
+      *method_is_dtor = classes[total_classes].class_has_dtor = true;
+    else {
+      *method_is_ctor = classes[total_classes].class_has_ctor = true;
+      if(*(q + 1) != ')') classes[total_classes].class_has_ctor_args = true;
+    }
 
   // is not ctor -- continue cpying method name
   } else { 
-    while(*p != '\0' && *p++ != ' ');                                         // skip type
-    while(*p != '\0' && VARCHAR(*p)) *name++ = *p++;                          // copy name
+    while(*p != '\0' && *p++ != ' ');                                    // skip type
+    while(*p != '\0' && VARCHAR(*p)) *name++ = *p++;                     // copy name
     *name = '\0';
-    sprintf(prepended_method_name, "DECLASS_%s_%s", class_name, method_name); // className_'function name'
+    sprintf(prepended_method_name, "DC_%s_%s", class_name, method_name); // className_'function name'
     // store method info in global class struct's instance of the current class
     strcpy(classes[total_classes].method_names[classes[total_classes].total_methods], method_name);
   }
   classes[total_classes].total_methods += 1;
-  return method_is_ctor;
 }
 
 // returns a member's initialized value (0 by default) & returns how far back name is after value initialization
@@ -1272,20 +1951,18 @@ int get_initialized_member_value(char *member_end) {
     for(; *start_of_val != ';'; i++, ++start_of_val)                                           // copy initialized value
       classes[total_classes].member_values[len][i] = *start_of_val;
     classes[total_classes].member_values[len][i] = '\0';
+
+    // determine whether obj is a ptr
+    char *check_ptr = member_end;
+    while(no_overlap(*check_ptr, "\n;*")) --check_ptr;
+    bool is_obj_ptr = (*check_ptr == '*');
     
     // determine whether initialized member value was a form of memory allocation
     classes[total_classes].member_value_is_alloc[len] = false;
     char *is_alloc = classes[total_classes].member_values[len];
     char *value_front = is_alloc;
     while(*is_alloc != '\0') {
-      if(  // at malloc/calloc
-        (((is_at_substring(is_alloc, "malloc") || is_at_substring(is_alloc, "calloc")) 
-        && !VARCHAR(*(is_alloc+6)) && strlen(is_alloc) > 5)
-        || // at smrtmalloc/smrtcalloc
-        ((is_at_substring(is_alloc, "smrtmalloc") || is_at_substring(is_alloc, "smrtcalloc")) 
-        && !VARCHAR(*(is_alloc+10)) && strlen(is_alloc) > 9))
-        && (is_alloc == value_front || !VARCHAR(*(is_alloc-1)))) {
-
+      if(is_an_alloc_fcn(is_alloc) && (is_alloc == value_front || !VARCHAR(*(is_alloc-1)))) {
         classes[total_classes].member_value_is_alloc[len] = true;
         classes[total_classes].class_has_alloc = true;
         break;
@@ -1295,20 +1972,21 @@ int get_initialized_member_value(char *member_end) {
 
     /* 
      * determine whether initialized member value was a user-defined ctor array invocation
-     * wherease single-object ctors use a funciton that can return an object, arrays rely on
+     * wherease single-object ctors use a function that can return an object, arrays rely on
      * invoking a macro (thus doesn't work for brace initialization) so splice out the macro 
      * in the DFLT fcn for the class && invoke the user-defined ctor outside of the object array's
      * brace initialization
     */
     char obj_arr_ctor_val[350]; FLOOD_ZEROS(obj_arr_ctor_val, 350);
     char obj_single_ctor_val[350]; FLOOD_ZEROS(obj_single_ctor_val, 350);
-    sprintf(obj_arr_ctor_val, "DECLASS__%s_USERCTOR_ARR", objects[total_objects-1].class_name);
-    sprintf(obj_single_ctor_val, "DECLASS_%s_", objects[total_objects-1].class_name);
+    sprintf(obj_arr_ctor_val, "DC__%s_UCTOR_ARR", objects[total_objects-1].class_name);
+    sprintf(obj_single_ctor_val, "DC_%s_", objects[total_objects-1].class_name);
     if(is_at_substring(classes[total_classes].member_values[len],obj_arr_ctor_val)
       || is_at_substring(classes[total_classes].member_values[len],obj_single_ctor_val)){
       strcpy(classes[total_classes].member_value_user_ctor[len], classes[total_classes].member_values[len]);
       FLOOD_ZEROS(classes[total_classes].member_values[len], MAX_DEFAULT_VALUE_LENGTH);
-      sprintf(classes[total_classes].member_values[len], "{0}");
+      if(!is_obj_ptr) sprintf(classes[total_classes].member_values[len], "{0}");
+      else            sprintf(classes[total_classes].member_values[len], "0");
     } else {
       classes[total_classes].member_value_user_ctor[len][0] = 0;
       classes[total_classes].member_value_user_ctor[len][1] = '\0';
@@ -1330,6 +2008,23 @@ void register_member_class_objects(char *member_end) {
   // move 'member_end' back from line's end to line's front (to get member data type)
   while(*member_end != '\0' && *member_end != '\n') --member_end;
   while(IS_WHITESPACE(*member_end)) ++member_end;
+  int latest_member = classes[total_classes].total_members;
+
+  // check as to whether member is tagged with the "immortal" keyword
+  // objects tagged as "immortal" before they're type never invoke user-defined class destructors
+  bool is_immortal = false;
+  if(*IMMORTALITY) {
+    char *check_mortality = member_end, keyword[100];
+    FLOOD_ZEROS(keyword, 100);
+    char *key_ptr = keyword;
+    while(VARCHAR(*check_mortality)) *key_ptr++ = *check_mortality++;
+    *key_ptr = '\0';
+    is_immortal = (strcmp(keyword, "immortal") == 0);
+    if(is_immortal) { // skip over "immortal" keyword & up to the start of the member's typename
+      member_end = check_mortality;
+      while(IS_WHITESPACE(*member_end)) ++member_end;
+    }
+  }
 
   // store member data-type/name & pointer/array status
   char member_type[100], member_name[100]; 
@@ -1355,20 +2050,24 @@ void register_member_class_objects(char *member_end) {
       if(classes[i].class_has_alloc) classes[total_classes].class_has_alloc = true;
 
       // record member class object's class name
-      strcpy(classes[total_classes].member_object_class_name[classes[total_classes].total_members], member_type);
+      strcpy(classes[total_classes].member_object_class_name[latest_member], member_type);
       
       // register class object member as one of its class' objects
       strcpy(objects[total_objects].object_name, member_name);
       strcpy(objects[total_objects].class_name, member_type);
       objects[total_objects].is_class_pointer = is_class_pointer;
       objects[total_objects].is_class_array = is_class_array;
+      // register object & member mortality
+      classes[total_classes].member_is_immortal[latest_member] = is_immortal;
+      objects[total_objects].is_immortal = is_immortal;
       total_objects++;
       return;
     }
   }
   // if not a class, class name is 0
-  classes[total_classes].member_object_class_name[classes[total_classes].total_members][0] = 0;
-  classes[total_classes].member_object_class_name[classes[total_classes].total_members][1] = '\0';
+  classes[total_classes].member_object_class_name[latest_member][0] = 0;
+  classes[total_classes].member_object_class_name[latest_member][1] = '\0';
+  classes[total_classes].member_is_immortal[latest_member] = false; // non-obj's not dtor'd so not affected by "immortal"
 }
 
 // check if sizeof() arg is the member just created (ie *node = malloc(sizeof(node));) and if so, 
@@ -1418,6 +2117,17 @@ int get_class_member(char *end, bool is_fcn_ptr) {
       while(*member_end != '[') --member_end; 
       classes[total_classes].member_is_array[len] = true;
     } else classes[total_classes].member_is_array[len] = false;
+
+    // if user using a ptr obj thats ctor'd & alloc'd, format "className *objName = ctor() = alloc()"
+    // BUT member end currently directly prior "alloc()"'s equal sign right now so register's ctor's
+    char *check_for_obj_ptr_alloc = member_end;
+    if(*check_for_obj_ptr_alloc == '=') --check_for_obj_ptr_alloc; // if no spaces padding '=' "member_end" will be @ '='
+    while(no_overlap(*check_for_obj_ptr_alloc, "\n=")) --check_for_obj_ptr_alloc;
+    if(*check_for_obj_ptr_alloc == '=') {   // CONTAINED OBJECT POINTER BEING CTOR'D & ALLOC'D !!!
+      while(!VARCHAR(*check_for_obj_ptr_alloc)) --check_for_obj_ptr_alloc;
+      ++check_for_obj_ptr_alloc;
+      member_end = check_for_obj_ptr_alloc; // move end of member object's name right after last '='
+    }
     
     member_start = member_end;                                       // [member_start, member_end)
     while(!IS_WHITESPACE(*(member_start - 1))) --member_start;
@@ -1427,8 +2137,11 @@ int get_class_member(char *end, bool is_fcn_ptr) {
     classes[total_classes].member_is_pointer[len] = (*find_asterisk == '*');
 
     int i = 0;                                                       // copy member to classes struct
-    for(; member_start != member_end; ++member_start) 
+    // for(; member_start != member_end; ++member_start) 
+    while(member_start != member_end) {
       if(VARCHAR(*member_start)) classes[total_classes].member_names[len][i++] = *member_start;
+      ++member_start;
+    }
     classes[total_classes].member_names[len][i] = '\0';
     check_for_alloc_sizeof_arg(); // prepend alloc sizeof() arg w/ "this." if arg = newest member
     classes[total_classes].total_members += 1;
@@ -1511,16 +2224,16 @@ void splice_in_this_arrowPtr(char *method_buff_idx) {
 int parse_local_nested_method(char *end, char *method_buff_idx, char *class_name, char method_words[][75]) {
   int prepended_size = 0;
   if(!VARCHAR(*end) && VARCHAR(*(end + 1))) {
-    *method_buff_idx++ = *end++, prepended_size++;                    // move to first letter
+    *method_buff_idx++ = *end++, prepended_size++;                     // move to first letter
     char method_name[75];
     FLOOD_ZEROS(method_name, 75);
     int i = 0;
-    while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++; // copy method name
-    if(*end != '(') return 0;                                         // if no method
+    while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++;  // copy method name
+    if(*end != '(') return 0;                                          // if no method
     method_name[i] = '\0';
-    for(int j = 0; j < classes[total_classes].total_methods; ++j)     // find if class has method name
+    for(int j = 0; j < classes[total_classes].total_methods; ++j)      // find if class has method name
       if(strcmp(classes[total_classes].method_names[j], method_name) == 0) {
-        sprintf(method_buff_idx, "DECLASS_%s_%s", class_name, method_name); // prepend method name w/ 'className'_
+        sprintf(method_buff_idx, "DC_%s_%s", class_name, method_name); // prepend method name w/ 'className'_
         method_buff_idx += strlen(method_buff_idx);
         // copy method arguments & prefix any local members w/in w/ 'this->'
         end += prefix_local_members_and_cpy_method_args(end, method_buff_idx, method_words, &prepended_size, ')');
@@ -1564,14 +2277,14 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   FLOOD_ZEROS(struct_buff, MAX_MEMBER_BYTES_PER_CLASS);
   FLOOD_ZEROS(class_name, 75);
   get_class_name(class_instance, class_name);
-  sprintf(struct_buff, "typedef struct DECLASS_%s {", class_name);
+  sprintf(struct_buff, "typedef struct DC_%s {", class_name);
   struct_buff_idx = &struct_buff[strlen(struct_buff)]; // points to '\0'
   method_buff_idx = method_buff;
 
   // store class info in global struct
   strcpy(classes[total_classes].class_name, class_name);
   classes[total_classes].total_methods = 0, classes[total_classes].total_members = 0;
-  classes[total_classes].class_has_alloc = false;
+  classes[total_classes].class_has_alloc = false, classes[total_classes].class_has_dtor = false;
   classes[total_classes].class_has_ctor = false, classes[total_classes].class_has_ctor_args = false;
 
   // # of class or comment chars
@@ -1621,8 +2334,31 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
         *struct_buff_idx-- = '\0';
         while(*struct_buff_idx != '\0' && *struct_buff_idx != '\n' && *struct_buff_idx != '=') *struct_buff_idx-- = '\0';
         *struct_buff_idx++ = ';';
+
+        char *check_for_obj_ptr_alloc = struct_buff_idx - 1;
+        while(no_overlap(*check_for_obj_ptr_alloc, "\n=")) --check_for_obj_ptr_alloc;
+        // only ptr objs both ctor'd and alloc'd have a "className *objName = ctor() = alloc();" format
+        if(*check_for_obj_ptr_alloc == '=') { 
+          // directly copy the obj ctor into the class object "member_value_user_ctor" attribute
+
+          char *obj_ptr_alloc = check_for_obj_ptr_alloc + 1;
+          int obj_ptr_idx = 0, current_member = classes[total_classes].total_members - 1;
+          while(IS_WHITESPACE(*obj_ptr_alloc)) ++obj_ptr_alloc;
+
+          // confirm at an object pointer being constructed and alloc'd (only instance where a valid double assignment
+          // could occur, and even then it's generated by declass.c not the user)
+          if(!is_at_substring(obj_ptr_alloc, "DC_")) throw_potential_invalid_double_dflt_assignment(class_name);
+
+          FLOOD_ZEROS(classes[total_classes].member_value_user_ctor[current_member], 350);
+          while(obj_ptr_alloc != struct_buff_idx) // copy ctor into class of "classes" struct array's ctor value
+            classes[total_classes].member_value_user_ctor[current_member][obj_ptr_idx++] = *obj_ptr_alloc++;
+          classes[total_classes].member_value_user_ctor[current_member][obj_ptr_idx-1] = '\0';
+
+          while(struct_buff_idx != check_for_obj_ptr_alloc) *struct_buff_idx-- = '\0'; // erase the ctor from struct buff
+          *struct_buff_idx++ = ';';
+        }
       }
-      skip_over_blank_lines(end);             // don't copy any blank lines to struct_buff
+      skip_over_blank_lines(end); // don't copy any blank lines to struct_buff
     }
 
     // check for function method
@@ -1659,7 +2395,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       // handle case (3): check for user-defined constructor invocation
       bool found_ctor = false;
       int struct_increment = 0;
-      end = check_for_ctor_obj(end, struct_buff_idx, class_instance, &class_size, &struct_increment, &found_ctor);
+      end = check_for_ctor_obj(end, struct_buff_idx, &class_size, &struct_increment, &found_ctor);
       if(found_ctor) {
         struct_buff_idx += struct_increment;
         // move line's end & invoke next loop iteration to trigger "member" detection logic above method detection
@@ -1679,7 +2415,8 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       // get className-prepended method name
       char prepended_method_name[150];
       FLOOD_ZEROS(prepended_method_name, 150);
-      bool method_is_ctor = get_prepended_method_name(start_of_line, class_name, prepended_method_name);
+      bool method_is_ctor = false, method_is_dtor = false;
+      get_prepended_method_name(start_of_line, class_name, prepended_method_name, &method_is_ctor, &method_is_dtor);
 
       // remove method from struct_buff (only members)
       char *wipe_method_line = start_of_line;
@@ -1687,7 +2424,11 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
       // copy method to 'method_buff' & move 'end' forward
       while(IS_WHITESPACE(*start_of_line) && start_of_line != end)  *method_buff_idx++ = *start_of_line++; // copy indent
-      while(!IS_WHITESPACE(*start_of_line) && start_of_line != end) *method_buff_idx++ = *start_of_line++; // copy type
+      if(method_is_dtor) {
+        sprintf(method_buff_idx, "void"); method_buff_idx += strlen(method_buff_idx);
+      } else {
+        while(!IS_WHITESPACE(*start_of_line) && start_of_line != end) *method_buff_idx++ = *start_of_line++; // copy type
+      }
       sprintf(method_buff_idx, " %s", prepended_method_name);                              // copy appended method name
       method_buff_idx += strlen(method_buff_idx);                                          // move method_buff_idx to '\0'
 
@@ -1695,10 +2436,14 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       while(*(end + 1) != '\0' && *end != ')') {
         // Check for class objects in method argument
         int k; 
+        bool PLACEHOLDER_ARG_VAL = false;
         for(k = 0; k < total_classes + 1; ++k)
           if(is_at_substring(end, classes[k].class_name) 
             && !VARCHAR(*(end + strlen(classes[k].class_name))) && !VARCHAR(*(end-1))) {
-            store_object_info(end); // register object arg as a class object instance
+            store_object_info(end, -1, &PLACEHOLDER_ARG_VAL); // register object arg as a class object instance
+            // check for unexpected "dummy ctor" invocation
+            if(PLACEHOLDER_ARG_VAL) 
+              POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(__func__, __LINE__, k);
             break; 
           }
         // Save method's words in argument
@@ -1716,9 +2461,28 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       method_buff_idx += strlen(method_buff_idx); 
       while(*end != '\0' && *(end - 1) != '{') *method_buff_idx++ = *end++, class_size++; // copy method up to '{'
 
+      // if method = destructor, splice in destructors for contained objects thus far at dtor's start
+      if(method_is_dtor)
+        for(int k = 0; k < classes[total_classes].total_members; ++k)
+          if(classes[total_classes].member_object_class_name[k][0] != 0
+            && !classes[total_classes].member_is_pointer[k]
+            && !classes[total_classes].member_is_immortal[k]) { // non-pointer & mortal member objects
+            if(classes[total_classes].member_is_array[k]) {
+              sprintf(method_buff_idx, "\n\t\tDC__%s_UDTOR_ARR(this->%s);", 
+                classes[total_classes].member_object_class_name[k], classes[total_classes].member_names[k]);
+            } else if(classes[total_classes].member_is_pointer[k]) {
+              sprintf(method_buff_idx, "\n\t\tDC__NOT_%s_(this->%s);", 
+                classes[total_classes].member_object_class_name[k], classes[total_classes].member_names[k]);
+            } else {
+              sprintf(method_buff_idx, "\n\t\tDC__NOT_%s_(&(this->%s));", 
+                classes[total_classes].member_object_class_name[k], classes[total_classes].member_names[k]);
+            }
+            method_buff_idx += strlen(method_buff_idx);
+          }
+
       // copy the rest of the method into 'method_buff'
-      in_class_scope++;                                                                   // skip first '{'
-      while(*end != '\0' && in_method_scope > 0 && in_class_scope > 0) {                  // copy method body
+      in_class_scope++;                                                      // skip first '{'
+      while(*end != '\0' && in_method_scope > 0 && in_class_scope > 0) {     // copy method body
         // account for current scope & cpy method
         if(*end == '{') in_method_scope++, in_class_scope++;
         else if(*end == '}') in_method_scope--, in_class_scope--;
@@ -1726,13 +2490,28 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
         if(in_method_scope < 0 || in_class_scope < 0) break;
 
         // check for class object declaration
+        bool dummy_ctor = false;
         for(int k = 0; !in_a_string && k < total_classes + 1; ++k)
           if(is_at_substring(end, classes[k].class_name) 
             && !VARCHAR(*(end-1)) && !VARCHAR(*(end+strlen(classes[k].class_name)))) {
-            if(store_object_info(end)) {
+            if(store_object_info(end, 1, &dummy_ctor)) {
+              // check if a so-called "dummy ctor" was detected and splice 
+              // in the "DC__DUMMY_" class/ctor name's prefix if so
+              if(dummy_ctor) {
+                int dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(method_buff_idx, end);
+                method_buff_idx += strlen(method_buff_idx);
+                end += dummy_ctor_len, class_size += dummy_ctor_len;
+                break;
+              }
+
+              // check if object is assigned a value upon declaration (if so, no default values need be added)
               char *already_assigned = end;
               while(*already_assigned != '\0' && no_overlap(*already_assigned, "\n;,=")) ++already_assigned;
-              if(*already_assigned == '=') break;
+              if(*already_assigned == '=' && !objects[total_objects-1].is_alloced_class_pointer) {
+                add_object_dtor(end);
+                break;
+              }
+
               // determine if object is invoking it's user-defined constructor
               char *user_ctor_finder = end;
               char user_ctor[500]; FLOOD_ZEROS(user_ctor, 500);
@@ -1742,18 +2521,32 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
               if(is_fcn_returning_obj) break;
               // implement macro ctor
               while(*end != '\0' && *(end-1) != ';') *method_buff_idx++ = *end++, ++class_size;
-              if(objects[total_objects-1].is_class_array) // object = array, use array macro init
-                sprintf(method_buff_idx, " DECLASS__%s_ARR(%s);", 
-                  classes[k].class_name, objects[total_objects-1].object_name);
-              else                                        // object != array, so use single-object macro init
-                sprintf(method_buff_idx, " DECLASS__%s_CTOR(%s);", 
-                  classes[k].class_name, objects[total_objects-1].object_name);
-              method_buff_idx += strlen(method_buff_idx);
+              // if an obj ptr allocating memory, confirm obj != NULL prior to passing to ctors & dflt-val assignment
+              if(objects[total_objects-1].is_alloced_class_pointer) {
+                sprintf(method_buff_idx, " if(%s){", objects[total_objects-1].object_name);
+                method_buff_idx += strlen(method_buff_idx);
+              }
+              // only add dflt vals for non-ptrs or memory-allocated pointers
+              if(!objects[total_objects-1].is_class_pointer || objects[total_objects-1].is_alloced_class_pointer) {
+                if(objects[total_objects-1].is_class_array)        // object = array, use array macro init
+                  sprintf(method_buff_idx, " DC__%s_ARR(%s);", 
+                    classes[k].class_name, objects[total_objects-1].object_name);
+                else if(objects[total_objects-1].is_class_pointer) // object != array, so use single-object macro init
+                  sprintf(method_buff_idx, " DC__%s_CTOR((*%s));", 
+                    classes[k].class_name, objects[total_objects-1].object_name);
+                else                                               // object != array, so use single-object macro init
+                  sprintf(method_buff_idx, " DC__%s_CTOR(%s);", 
+                    classes[k].class_name, objects[total_objects-1].object_name);
+                method_buff_idx += strlen(method_buff_idx);
+              }
               // add user-defined ctor invocation w/ initialization values (if present)
               if(user_ctor_invoked) { 
                 sprintf(method_buff_idx, " %s", user_ctor); 
                 method_buff_idx += strlen(method_buff_idx); 
               }
+              // if an obj ptr allocing memory, close the "if != null" braced-condition
+              if(objects[total_objects-1].is_alloced_class_pointer) *method_buff_idx++ = '}';
+              add_object_dtor(end);
             }
             break;
           }
@@ -1815,6 +2608,62 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
     end++, class_size++;
   }
 
+  // provide a default destructor/constructor if left undefined by user
+  char default_ctor_dtor[MAX_METHOD_BYTES_PER_CLASS];
+  FLOOD_ZEROS(default_ctor_dtor, MAX_METHOD_BYTES_PER_CLASS);
+  char *default_cd = default_ctor_dtor;
+
+  // add a default destructor to invoke any dtors of contained objects if user left dtor undefined
+  if(!classes[total_classes].class_has_dtor) {
+    sprintf(default_cd, "\nvoid DC__NOT_%s_(%s *this) {", class_name, class_name);
+    default_cd += strlen(default_cd);
+    for(int k = 0; k < classes[total_classes].total_members; ++k) {
+      // if found a mortal & non-pointer class member object
+      if(!classes[total_classes].member_is_immortal[k] 
+        && classes[total_classes].member_object_class_name[k][0] != 0
+        && !classes[total_classes].member_is_pointer[k]) {
+        if(classes[total_classes].member_is_array[k])        // dtor contained object array
+          sprintf(default_cd, "\n\tDC__%s_UDTOR_ARR(this->%s);", 
+            classes[total_classes].member_object_class_name[k], classes[total_classes].member_names[k]);
+        else if(classes[total_classes].member_is_pointer[k]) // dtor contained single object
+          sprintf(default_cd, "\n\tDC__NOT_%s_(this->%s);", 
+            classes[total_classes].member_object_class_name[k], classes[total_classes].member_names[k]);
+        else                                                 // dtor contained single object
+          sprintf(default_cd, "\n\tDC__NOT_%s_(&(this->%s));", 
+            classes[total_classes].member_object_class_name[k], classes[total_classes].member_names[k]);
+        default_cd += strlen(default_cd);
+      }
+    }
+    sprintf(default_cd, "\n}");
+    default_cd += strlen(default_cd);
+    classes[total_classes].class_has_dtor = true;
+  }
+
+  // add a default constructor to always allow "()" invocation as well as w/o "()" if user left ctor undefined
+  if(!classes[total_classes].class_has_ctor) {
+    sprintf(default_cd, "\n%s DC_%s_(%s*this){return*this;}", 
+      class_name, class_name, class_name);
+    default_cd += strlen(default_cd);
+    classes[total_classes].class_has_ctor = true;
+  }
+
+  // add a so-called "dummy" object-less constructor to return an object:
+  // used as an assignment value, denoted as "className objName = className(args);" 
+  // with the "dummy ctor" in this example being on the RHS
+  if(classes[total_classes].class_has_ctor_args) {
+    sprintf(default_cd, 
+    "\n#define DC__DUMMY_%s(...)({\\\n\t%s DC__%s__temp;\\\n\tDC__%s_CTOR(DC__%s__temp);\\\n\t\
+DC_%s_(__VA_ARGS__, &DC__%s__temp);\\\n})", 
+      class_name, class_name, class_name, class_name, class_name, class_name, class_name);
+  } else {
+    sprintf(default_cd, 
+    "\n#define DC__DUMMY_%s()({\\\n\t%s DC__%s__temp;\\\n\tDC__%s_CTOR(DC__%s__temp);\\\n\t\
+DC_%s_(&DC__%s__temp);\\\n})", 
+      class_name, class_name, class_name, class_name, class_name, class_name, class_name);
+  }
+  default_cd += strlen(default_cd);
+  *default_cd = '\0';
+
   // clean-up formatting of struct & method buffers
   sprintf(struct_buff_idx, " %s;", class_name);
   *method_buff_idx = '\0';
@@ -1823,11 +2672,14 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   if(*(end - 1) == ';') end++, class_size++;
 
   // copy the constructor macros, class-converted-to-struct, & spliced-out methods to 'NEW_FILE'
-  char macro_ctor_comment[100], struct_comment[100], method_comment[100];
-  FLOOD_ZEROS(macro_ctor_comment, 100); FLOOD_ZEROS(struct_comment, 100); FLOOD_ZEROS(method_comment, 100);
-  sprintf(macro_ctor_comment, "/* %s CLASS DEFAULT VALUE MACRO CONSTRUCTORS: */\n", class_name);
-  sprintf(struct_comment, "\n\n/* %s CLASS CONVERTED TO STRUCT: */\n", class_name);
-  sprintf(method_comment, "\n\n/* %s CLASS METHODS SPLICED OUT: */", class_name);
+  char macro_ctor_comment[200], macro_dtor_comment[200], struct_comment[200], method_comment[200], dflt_comment[200];
+  FLOOD_ZEROS(macro_ctor_comment, 200); FLOOD_ZEROS(macro_dtor_comment, 200);
+  FLOOD_ZEROS(struct_comment, 200);  FLOOD_ZEROS(method_comment, 200); FLOOD_ZEROS(dflt_comment, 200);
+  sprintf(macro_ctor_comment, "/* \"%s\" CLASS DEFAULT VALUE MACRO CONSTRUCTORS: */\n", class_name);
+  sprintf(macro_dtor_comment, "\n/* \"%s\" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */\n", class_name);
+  sprintf(struct_comment, "\n\n/* \"%s\" CLASS CONVERTED TO STRUCT: */\n", class_name);
+  sprintf(method_comment, "\n\n/* \"%s\" CLASS METHODS SPLICED OUT: */", class_name);
+  sprintf(dflt_comment, "\n\n/* DEFAULT PROVIDED \"%s\" CLASS CONSTRUCTOR/DESTRUCTOR: */", class_name);
 
   // make a global class object with default values to initialize client's unassigned class objects with
   char initial_values_brace[500];
@@ -1842,14 +2694,21 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   char ctor_macros[3500];
   FLOOD_ZEROS(ctor_macros, 3500); mk_ctor_macros(ctor_macros, class_name); 
 
+  // make macro dtor to invoke user-defined (or default if undefined by user) dtor across an array of objects
+  char dtor_array_macro[3500];
+  FLOOD_ZEROS(dtor_array_macro, 3500); 
+  mk_dtor_array_macro(dtor_array_macro, class_name); 
+
   // struct before methods to use class/struct type for method's 'this' ptr args
   if(strlen(struct_buff) > 0) {
-    APPEND_BUFF_OR_STR_TO_NEW_FILE("/******************************** CLASS START ********************************/\n");
-    APPEND_BUFF_OR_STR_TO_NEW_FILE(macro_ctor_comment); APPEND_BUFF_OR_STR_TO_NEW_FILE(ctor_macros);
-    APPEND_BUFF_OR_STR_TO_NEW_FILE(struct_comment); APPEND_BUFF_OR_STR_TO_NEW_FILE(struct_buff);
-    APPEND_BUFF_OR_STR_TO_NEW_FILE(class_global_initializer);
-    if(strlen(method_buff)>0)APPEND_BUFF_OR_STR_TO_NEW_FILE(method_comment);APPEND_BUFF_OR_STR_TO_NEW_FILE(method_buff);
-    APPEND_BUFF_OR_STR_TO_NEW_FILE("\n/********************************* CLASS END *********************************/");
+    APPEND_STR_TO_NEW_FILE("/******************************** CLASS START ********************************/\n");
+    APPEND_STR_TO_NEW_FILE(macro_ctor_comment); APPEND_STR_TO_NEW_FILE(ctor_macros);
+    APPEND_STR_TO_NEW_FILE(macro_dtor_comment); APPEND_STR_TO_NEW_FILE(dtor_array_macro);
+    APPEND_STR_TO_NEW_FILE(struct_comment); APPEND_STR_TO_NEW_FILE(struct_buff);
+    APPEND_STR_TO_NEW_FILE(class_global_initializer);
+    APPEND_STR_TO_NEW_FILE(dflt_comment); APPEND_STR_TO_NEW_FILE(default_ctor_dtor);
+    if(strlen(method_buff)>0)APPEND_STR_TO_NEW_FILE(method_comment);APPEND_STR_TO_NEW_FILE(method_buff);
+    APPEND_STR_TO_NEW_FILE("\n/********************************* CLASS END *********************************/");
   }
 
   total_classes++;
