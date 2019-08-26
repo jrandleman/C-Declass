@@ -225,7 +225,7 @@ int main() {
 --------------
 ## '`-l`' Output for the Simple Sample Stack Class:
 * _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
-  * _refer to the 8 caveats &_ "`declass_SampleExec.c`" _otherwise!_
+  * _refer to the 10 caveats &_ "`declass_SampleExec.c`" _otherwise!_
 ```
 --=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 2 ]=--
 
