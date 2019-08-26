@@ -14,7 +14,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the 10 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 --------------
-## C-Declassify's 10 Caveats, Straight From "`declass.c`":
+## Declass-C's 10 Caveats, Straight From "`declass.c`":
 * _**Note**: whereas 0-2 pertain to formatting, 3-9 relate to restricted class operations with possible alternatives_
 ```c
 /*****************************************************************************
@@ -54,6 +54,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
 * "`smrtptr.h`"_'s function variants work exactly like_ "`stdlib.h`"_'s with each function prefixed by_ "`smrt`"
 * _Learn more about_ "`smrtptr.h`" _by checking it out in [my C-Library repository](https://github.com/jrandleman/C-Libraries) or [by clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
+* _Disable_ "`smrtptr.h`"_'s default inclusion via "Macro Flag" (2) below_
 --------------
 ## Using Constructors (Ctors) & Destructors (Dtors):
 ### Formatting:                                                           
@@ -71,7 +72,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * _Can be explicitly invoked by user (suppose object_ "`objName`" _& class_ "`className`")_:_
     * _**Dtor**: destroy object_ "`objName`" _immediately:_ `~objName();`
     * _**Ctor**: return ctor'd_ "`className`" _object instance:_ `className(args);`
-      * _these so-called "dummy" ctors don't handle specific objects, but return a "dummy" ctor'd class object_
+      * _these so-called "dummy" ctors don't handle specific objects, but return a "dummy" ctor'd object_
       * _**except for ptrs**,_ "`className objName(args);`" _==_ "`className objName = className(args);`"
       
 ### Default Properties:
@@ -80,7 +81,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   1) _**Object Arguments**: passed object gets dtor'd instead at the end of their declaration's scope_
   2) _**Returned Objects**: assumed being assigned as a value that's dtor'd externally_
   3) _**"immortal" Objects:** never dtor'd, see below to learn more_
-     * _**Note**: the last 2 above can be dtor'd with macro flags 3-4 below_
+     * _**Note**: the last 2 above can be dtor'd with "Macro Flags" 3-4 below_
 
 ### Object Declarations:
 * _**Note**: suppose class_ "`className`"_, object_ "`objName`"_, & an object memory allocation function_ "`alloc`"
@@ -90,15 +91,47 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * **Object Pointers & Initializing them with Ctors/Dflts/Neither:**       
   * _**"Dangling" Ptr**:_ `className *objName; // neither Ctor nor Dflt (default) values applied`
   * _**Ctor'd Ptr**:_ `className *objName(args); // only advised if Ctor also allocates memory`
-  * _**Ctor'd & Alloc'd Ptr**:_ `className *objName(args) = alloc(sizeof(className));" // best choice`
+  * _**Ctor'd & Alloc'd Ptr**:_ `className *objName(args) = alloc(sizeof(className)); // best choice`
 * **Object Pointer Best Practices to Reduce Risk of Errors:**       
   * _**"Dangling" Ptr**: keep "immortal" unless class was specifically designed with ptrs in mind_
   * _**Non-Dangling**: allocate memory & Ctor upon declaration_
 --------------
-* _Disable_ "`smrtptr.h`"_'s default inclusion by including the following:_ 
+## The "immortal" Keyword:
+### Objects Declared as "immortal" are Never Dtor'd:
+* _**Declaration**:_ `immortal className objName(args);`
+* _**Contained objects** can **also** be immortal!_
+### Object Arguments are Always "immortal":
+* _As placeholders, the passed object they represent aren't out of scope once the fcn ends (no double Dtor)_
+* _"Macro Flag" (3) below disables **all** immortal objects **except** object arguments_
+--------------
+## Declass-C's Pre-Preprocessor Specialization Macro Flags:
+### By Precedence:
+0) ```c 
+   #define DECLASS_IGNORE       // "declass.c" won't convert file
+   ```
+1) ```c
+   #define DECLASS_STRICTMODE   // enables macro flags 2-4
+   ```
+2) ```c
+   #define DECLASS_NSMRTPTR     // disables default inclusion of "smrtptr.h"
+   ```
+3) ```c
+   #define DECLASS_NIMMORTAL    // disables "immortal" keyword
+   ```
+4) ```c
+   #define DECLASS_DTORRETURN   // also Dtor returned objects
+   ```
+5) ```c
+   #define DECLASS_NOISYSMRTPTR // printf an alert whenever smrtptr.h allocates or frees
+   ```
+### Defining Custom Memory Allocation Functions:
+* `declass.c` _relies on being able to identify memory allocation fcns to not apply dflt vals to garbage memory_
+* `declass.c` _de facto recognizes_ `malloc`_,_ `calloc`_,_ `smrtmalloc`_, and `smrtcalloc`
+* _Users can declare custom object memory allocation fcns to be recognized by_ `declass.c` _via the macro:_
 ```c
-#define DECLASS_NSMRTPTR
+#define DECLASS_ALLOC_FCNS // list custom alloc fcns here
 ```
+* _**Note:**_ **`declass.c`** _**assumes all allocation functions return**_ **`NULL`** _**or terminate the program upon failure!**_
 --------------
 ## A Simple Sample Stack Class:
 * _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object ctors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h's autonomous freeing, using "this" ptr in methods, and more!_
