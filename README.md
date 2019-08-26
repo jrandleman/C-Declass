@@ -126,7 +126,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
    ```
 ### Defining Custom Memory Allocation Functions:
 * `declass.c` _relies on being able to identify memory allocation fcns to not apply dflt vals to garbage memory_
-* `declass.c` _de facto recognizes_ `malloc`_,_ `calloc`_,_ `smrtmalloc`_, and `smrtcalloc`
+* `declass.c` _de facto recognizes_ `malloc`_,_ `calloc`_,_ `smrtmalloc`_, and_ `smrtcalloc`
 * _Users can declare custom object memory allocation fcns to be recognized by_ `declass.c` _via the macro:_
 ```c
 #define DECLASS_ALLOC_FCNS // list custom alloc fcns here
