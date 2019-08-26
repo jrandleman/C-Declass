@@ -223,7 +223,7 @@ int main() {
 }
 ```
 --------------
-## '`-l`' Output for the Simple Sample Class:
+## '`-l`' Output for the Simple Sample Stack Class:
 * _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
   * _refer to the 8 caveats &_ "`declass_SampleExec.c`" _otherwise!_
 ```
