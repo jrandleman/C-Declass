@@ -1,6 +1,6 @@
 # Declass-C
 ## Declassifier Enables Classes in C by Pre-Preprocessing Files!
-#### **_Ctors, Member Default Values/Allocation, Methods, Object Arrays/Pointers/Containment, Smart Ptrs, and more!_**
+#### **_Ctors/Dtors, Member Default Values/Allocation, Methods, Object Arrays/Ptrs/Containment, Smart Ptrs, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -12,53 +12,68 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
-* _Adhere to the 8 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
+* _Adhere to the 10 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 --------------
-## C-Declassify's 8 Caveats & 3 Notes, Straight From declass.c:
-* _**Note**: whereas 1-3 pertain to formatting, 5-8 relate to restricted class operations with possible alternatives_
-* _**Note**: the 3 notes pertain to_ "`smrtptr.h`"_'s default inclusion and how to use class constructors_
+## C-Declassify's 10 Caveats:
+* _**Note**: whereas 0-2 pertain to formatting, 3-9 relate to restricted class operations with possible alternatives_
 ```c
 /*****************************************************************************
- *                       -:- DECLASS.C 8 CAVEATS -:-                        *
- *   (1) 'DECLASS_' PREFIX & 'this' POINTER ARE RESERVED                    *
- *   (2) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
- *   (3) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
- *   (4) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
- *       (*) IE NOT:      'className c, e;'                                 *
- *       (*) ALTERNATIVE: 'className c; <press enter> className e;'         *
- *   (5) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
- *       (*) IE NOT:      'someObj.method1(someObj.method2());'             *
- *       (*) ALTERNATIVE: 'int x = someObj.method2(); someObj.method1(x);'  *
- *   (6) CLASS ARRAYS RECIEVED AS ARGS MUST BE DENOTED WITH '[]' NOT '*':   *
- *       (*) IE NOT:      'func(className *classArr){...}'                  *
- *       (*) ALTERNATIVE: 'func(className classArr[]){...}'                 *
- *   (7) NO POINTER TO ARRAY OF OBJECTS:                                    *
- *       (*) IE NOT:      className (*ptrToArrObj)[10];                     *
- *       (*) ALTERNATIVE: pointer to an object w/ array of objects member   *
+ *                 -:- DECLASS.C 10 CAVEATS WRT CLASSES -:-                 *
+ *   (0) RESERVED: "DC_" PREFIX, "this" PTR, "CONST", & STORAGE VARIABLES   *
+ *   (1) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
+ *   (2) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
+ *   (3) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
+ *       (*) IE NOT:   "className c(), e();"                                *
+ *       (*) RATHER:   "className c(); <press enter> className e();"        *
+ *   (4) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
+ *       (*) IE NOT:   "someObj.method1(someObj.method2());"                *
+ *       (*) RATHER:   "int x = someObj.method2(); someObj.method1(x);"     *
+ *   (5) CLASS ARRAYS RECEIVED AS ARGS MUST BE DENOTED W/ "[]" NOT "*":     *
+ *       (*) IE NOT:   "func(className *classArr){...}"                     *
+ *       (*) RATHER:   "func(className classArr[]){...}"                    *
+ *   (6) NO PTR TO OBJECT ARRAY OR VISE-VERSA (UNDEFINED BEHAVIOR):         *
+ *       (*) IE NOT:   "className (*ptrToArrObj)[10];"                      *
+ *       (*) RATHER:   ptr to an obj w/ array of obj member (or vise-versa) *
+ *   (7) NO MULTIDIMENSIONAL OBJECT ARRAYS (UNDEFINED BEHAVIOR):            *
+ *       (*) IE NOT:   className objMatrix[10][10];                         *
+ *       (*) RATHER:   array of objects each w/ array of objects member     *
  *   (8) CONTAINMENT, NOT INHERITANCE: CLASSES CAN ONLY ACCESS MEMBERS &    *
  *       METHODS OF THEIR OWN IMMEDIATE MEMBER CLASS OBJECTS:               *
- *       (*) IE: suppose classes c1, c2, & c3, with c1 in c2 & c2 in c3.    *
- *               c3 can access c2 members and c2 ca access c1 members,      *
- *               but c3 CANNOT access c1 members                            *
- *       (*) ALTERNATIVES: (1) simply include a c1 object as a member in c3 *
- *                         (2) create methods in c2 invoking c1 methods as  *
- *                             an interface for c3                          *
- *****************************************************************************
- *                         -:- DECLASS.C NOTES -:-                          *
- *   (1) W/O "#define DECLASS_NSMRTPTR", THE SMRTPTR.H LIBRARY IS INCLUDED, *
- *       W/ IMPROVED MALLOC/CALLOC/REALLOC/FREE FCNS & GARBAGE COLLECTION   *
- *       (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"   *
- *   (2) DENOTE CONSTRUCTORS AS TYPLESS METHODS W/ SAME NAME AS ITS CLASS   *
- *   (3) DELCARING OBJECTS => CONSTRUCTORS (CTORS) & DEFAULT (DFLT) VALUES: *
- *       (*) only dflt values: "className objectName;"                      *
- *       (*) dflts & ctor(if defined): "className objectName(ctor_args);"   *
- *       (*) dflts & ctor for an array: "className objectName[size](args);" *
+ *       (*) NOTE:     let "->" denote "can access the members of"          *
+ *       (*) IE:       suppose classes c1, c2 & c3: w/ c1 in c2 & c2 in c3. *
+ *                     c3 -> c2, and c2 -> c1, BUT NOT c3 -> c1.            *
+ *       (*) RATHER:   (1) include a c1 object as a member in c3            *
+ *                     (2) mk c2 methods invoking c1 methods: c3 interface  *
+ *   (9) ONLY BINARY SINGLE-LINE CONDITIONAL ("?:") OBJECT RETURNS:         *
+ *       (*) IE NOT:   "return case ? obj : case2 ? obj2 : obj3;"           *
+ *       (*) RATHER:   "if(case) return obj; return case2 ? obj2 : obj3;"   *
  *****************************************************************************/
 ```
 --------------
-## Disabling the Smart Pointer Library:
-* _Declass-C also enables my_ "`smrtptr.h`" _library by default to improve upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _functions by automating garbage collection (with each function prefixed by "smrt")_
+## Enables My "`smrtptr.h`" Library By Default:
+* _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
+* "`smrtptr.h`"_'s function variants work exactly like_ "`stdlib.h`"_'s with each function prefixed by_ "`smrt`"
 * _Learn more about_ "`smrtptr.h`" _by checking it out in [my C-Library repository](https://github.com/jrandleman/C-Libraries) or [by clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
+--------------
+## Using Constructors (Ctors) & Destructors (Dtors):
+### Formatting:                                                           
+* **Ctors are denoted as a _typeless method with their class' name_:**     
+  * _Can initialize contained object members as if a default value_
+  * _User-invoked in object declaration, declass.c will automatically* apply default values first_
+    * _***Note**: declass.c will **only** apply default values to object ptrs declared as allocated & constructed_
+  * _Can take arguments_
+* **Dtors are denoted like Ctors, _but prefixed with '~'_:**       
+  * _Container objects automatically dtor any member objects first when destroyed_
+  * _Either invoked explicitly by user or autonomously by declass.c once object out of scope_
+  * _**Never takes arguments!**_
+* **For Both Ctor's & Dtor's:**
+  * _**Never** have a "return" value (being typeless)!_
+  * _Can be explicitly invoked by user (suppose object "objName" & class "className"):_
+    * _**Dtor**: destroy object "objName" immediately: "~objName();"_
+    * _**Ctor**: return ctor'd "className" object instance: "className(args);"_
+      * _these so-called "dummy" ctors don't handle specific objects, rather they return an instance of a sample ctor'd class object_
+      * _**except for ptrs**, "className objName(args);" == "className objName = className(args);"_
+--------------
 * _Disable_ "`smrtptr.h`"_'s default inclusion by including the following:_ 
 ```c
 #define DECLASS_NSMRTPTR
