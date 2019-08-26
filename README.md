@@ -14,7 +14,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the 10 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
 --------------
-## C-Declassify's 10 Caveats:
+## C-Declassify's 10 Caveats, Straight From "`declass.c`":
 * _**Note**: whereas 0-2 pertain to formatting, 3-9 relate to restricted class operations with possible alternatives_
 ```c
 /*****************************************************************************
@@ -68,11 +68,32 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * _**Never takes arguments!**_
 * **For Both Ctor's & Dtor's:**
   * _**Never** have a "return" value (being typeless)!_
-  * _Can be explicitly invoked by user (suppose object "objName" & class "className"):_
-    * _**Dtor**: destroy object "objName" immediately: "~objName();"_
-    * _**Ctor**: return ctor'd "className" object instance: "className(args);"_
-      * _these so-called "dummy" ctors don't handle specific objects, rather they return an instance of a sample ctor'd class object_
-      * _**except for ptrs**, "className objName(args);" == "className objName = className(args);"_
+  * _Can be explicitly invoked by user (suppose object_ "`objName`" _& class_ "`className`")_:_
+    * _**Dtor**: destroy object_ "`objName`" _immediately:_ `~objName();`
+    * _**Ctor**: return ctor'd_ "`className`" _object instance:_ `className(args);`
+      * _these so-called "dummy" ctors don't handle specific objects, but return a "dummy" ctor'd class object_
+      * _**except for ptrs**,_ "`className objName(args);`" _==_ "`className objName = className(args);`"
+      
+### Default Properties:
+* **Default object Ctors/Dtors are provided if left undefined by user**
+* **3 kinds of objects are never dtor'd in their immediate scope:**       
+  1) _**Object Arguments**: passed object gets dtor'd instead at the end of their declaration's scope_
+  2) _**Returned Objects**: assumed being assigned as a value that's dtor'd externally_
+  3) _**"immortal" Objects:** never dtor'd, see below to learn more_
+     * _**Note**: the last 2 above can be dtor'd with macro flags 3-4 below_
+
+### Object Declarations:
+* _**Note**: suppose class_ "`className`"_, object_ "`objName`"_, & an object memory allocation function_ "`alloc`"
+* **Using Ctors (declass.c automatically assigns object default values first):**
+  * _**Single Object**:_ `className objName(args);`
+  * _**Object Array**:_ `className objName\[size](args);`
+* **Object Pointers & Initializing them with Ctors/Dflts/Neither:**       
+  * _**"Dangling" Ptr**:_ `className *objName; // neither Ctor nor Dflt (default) values applied`
+  * _**Ctor'd Ptr**:_ `className *objName(args); // only advised if Ctor also allocates memory`
+  * _**Ctor'd & Alloc'd Ptr**:_ `className *objName(args) = alloc(sizeof(className));" // best choice`
+* **Object Pointer Best Practices to Reduce Risk of Errors:**       
+  * _**"Dangling" Ptr**: keep "immortal" unless class was specifically designed with ptrs in mind_
+  * _**Non-Dangling**: allocate memory & Ctor upon declaration_
 --------------
 * _Disable_ "`smrtptr.h`"_'s default inclusion by including the following:_ 
 ```c
