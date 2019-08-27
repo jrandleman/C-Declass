@@ -11,8 +11,8 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 ### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
-* _Provided_ "`declass_SampleExec.c`" _demos class abilities, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
-* _Adhere to the 10 caveats & use_ "`declass_SampleExec.c`" _as a reference for operations!_
+* _Provided_ "`declass_SampleExec.c`" _demos classes, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
+* _Adhere to the 10 caveats & use_ "`declass_SampleExec.c`" _as an operations reference!_
 --------------
 ## Declass-C's 10 Caveats, Straight From "`declass.c`":
 * _**Note**: whereas 0-2 pertain to formatting, 3-9 relate to restricted class operations with possible alternatives_
@@ -52,20 +52,20 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## Enables My "`smrtptr.h`" Library By Default:
 * _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
-* "`smrtptr.h`"_'s function variants work exactly like_ "`stdlib.h`"_'s with each function prefixed by_ "`smrt`"
+* "`smrtptr.h`"_'s functions work exactly like_ "`stdlib.h`"_'s with each prefixed by_ "`smrt`"
 * _Learn more about_ "`smrtptr.h`" _by checking it out in [my C-Library repository](https://github.com/jrandleman/C-Libraries) or [by clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
 * _Disable_ "`smrtptr.h`"_'s default inclusion via "Macro Flag" (2) below_
 --------------
 ## Using Constructors (Ctors) & Destructors (Dtors):
 ### Formatting:                                                           
 * **Ctors are denoted as a _typeless method with their class' name_:**     
-  * _Can initialize contained object members as if a default value_
+  * _Can initialize contained object members as a default value_
   * _User-invoked in object declaration, declass.c will automatically* apply default values first_
     * _***Note**: declass.c will **only** apply default values to object ptrs declared as allocated & constructed_
   * _Can take arguments_
 * **Dtors are denoted like Ctors, _but prefixed with '~'_:**       
   * _Container objects automatically dtor any member objects first when destroyed_
-  * _Either invoked explicitly by user or autonomously by declass.c once object out of scope_
+  * _Either invoked explicitly by user or autonomously by_ `declass.c` _once object out of scope_
   * _**Never takes arguments!**_
 * **For Both Ctor's & Dtor's:**
   * _**Never** have a "return" value (being typeless)!_
@@ -76,15 +76,18 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
       * _**except for ptrs**,_ "`className objName(args);`" _==_ "`className objName = className(args);`"
       
 ### Default Properties:
-* **Default object Ctors/Dtors are provided if left undefined by user**
+* **Default object Ctors/Dtors provided if left undefined by user**
 * **3 kinds of objects are never dtor'd in their immediate scope:**       
   1) _**Object Arguments**: passed object gets dtor'd instead at the end of their declaration's scope_
   2) _**Returned Objects**: assumed being assigned as a value that's dtor'd externally_
   3) _**"immortal" Objects:** never dtor'd, see below to learn more_
-     * _**Note**: the last 2 above can be dtor'd with "Macro Flags" 3-4 below_
+     * _**Note**: 2 and 3 can be dtor'd via "Macro Flags" 3-4 below_
 
 ### Object Declarations:
 * _**Note**: suppose class_ "`className`"_, object_ "`objName`"_, & an object memory allocation function_ "`alloc`"
+* **Using Only Default Values:**
+  * _**Single Object**:_ `className objName;`
+  * _**Object Array**:_ `className objName[size];`
 * **Using Ctors (declass.c automatically assigns object default values first):**
   * _**Single Object**:_ `className objName(args);`
   * _**Object Array**:_ `className objName[size](args);`
@@ -93,7 +96,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * _**Ctor'd Ptr**:_ `className *objName(args); // only advised if Ctor also allocates memory`
   * _**Ctor'd & Alloc'd Ptr**:_ `className *objName(args) = alloc(sizeof(className)); // best choice`
 * **Object Pointer Best Practices to Reduce Risk of Errors:**       
-  * _**"Dangling" Ptr**: keep "immortal" unless class was specifically designed with ptrs in mind_
+  * _**"Dangling" Ptr**: keep "immortal" unless class specifically designed for ptrs_
   * _**Non-Dangling**: allocate memory & Ctor upon declaration_
 --------------
 ## The "immortal" Keyword:
@@ -125,7 +128,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
    #define DECLASS_NOISYSMRTPTR // printf an alert whenever smrtptr.h allocates or frees
    ```
 ### Defining Custom Memory Allocation Functions:
-* `declass.c` _relies on being able to identify memory allocation fcns to not apply dflt vals to garbage memory_
+* `declass.c` _relies on identifying memory allocation functions to not apply dflt vals to garbage memory_
 * `declass.c` _de facto recognizes_ `malloc`_,_ `calloc`_,_ `smrtmalloc`_, and_ `smrtcalloc`
 * _Users can declare custom object memory allocation fcns to be recognized by_ `declass.c` _via the macro:_
 ```c
@@ -134,13 +137,13 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _**Note:**_ **`declass.c`** _**assumes all allocation functions return**_ **`NULL`** _**or terminate the program upon failure!**_
 --------------
 ## A Simple Sample Stack Class:
-* _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object ctors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h's autonomous freeing, using "this" ptr in methods, and more!_
+* _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object ctors/dtors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h autonomous freeing, methods using "this" ptr, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
 #include <stdbool.h>
 
-class Stack {   // "class" keyword tips off declass.c
+class Stack {
   int *arr = smrtmalloc(sizeof(int) * 10); // "smrtmalloc" via smrtptr.h handles freeing
   int len;      // empty member values default 0
   int max = 10; // all "Stack" objects will now default to "max" = 10
@@ -170,12 +173,17 @@ class Stack {   // "class" keyword tips off declass.c
   int size() { return len; } // return a local member value from method
 
   // create class constructors by making a "typeless" method w/ the same name of the class
-  // -- gets invoked at every object delcaration so long as "(<args>)" are provided,
-  // otherwise object only get default values without calling its constructor.
-
+  // => gets invoked at every object delcaration so long as "(<args>)" are provided,
+  //    otherwise object only get default values without calling its constructor.
   Stack(int array[], int length) {
     for(int i = 0; i < length; ++i) 
       push(array[i]);
+  }
+
+  // class destructor, formatted like a ctor but prefixed w/ '~',
+  // is invoked once an object is out of scope
+  ~Stack() {
+    printf("Stack object destroyed!\n");
   }
 }
 
@@ -234,13 +242,14 @@ CLASS No1, Stack:
  |  L_ *arr (( ALLOCATED MEMORY ))
  |  L_ len
  |  L_ max
- L_ METHODS: 6
+ L_ METHODS: 7
  | L_ push()
  | L_ pop()
  | L_ top()
  | L_ show()
  | L_ size()
  | L_ Stack() (( CONSTRUCTOR ))
+ | L_ ~Stack() (( DESTRUCTOR ))
  L_ OBJECTS: 2
    L_ myStack
    L_ newStack
