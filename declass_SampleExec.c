@@ -25,8 +25,8 @@
  *   (1) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (2) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
  *   (3) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
- *       (*) IE NOT:   "className c, e;"                                    *
- *       (*) RATHER:   "className c; <press enter> className e;"            *
+ *       (*) IE NOT:   "className c(), e();"                                *
+ *       (*) RATHER:   "className c(); <press enter> className e();"        *
  *   (4) NO NESTED CLASS DECLARATIONS NOR METHOD INVOCATIONS:               *
  *       (*) IE NOT:   "someObj.method1(someObj.method2());"                *
  *       (*) RATHER:   "int x = someObj.method2(); someObj.method1(x);"     *
@@ -48,7 +48,7 @@
  *                     (2) mk c2 methods invoking c1 methods: c3 interface  *
  *   (9) ONLY BINARY SINGLE-LINE CONDITIONAL ("?:") OBJECT RETURNS:         *
  *       (*) IE NOT:   "return case ? obj : case2 ? obj2 : obj3;"           *
- *       (*) RATHER:   "if(case)return obj; return case2 ? obj2 : obj3;"    *
+ *       (*) RATHER:   "if(case) return obj; return case2 ? obj2 : obj3;"   *
  *****************************************************************************
  *                       -:- DECLASS.C & SMRTPTR.H -:-                      *
  *    SMRTPTR.H LIBRARY IS DEFAULT INCLUDED, W/ IMPROVED MALLOC, CALLOC,    *
@@ -79,22 +79,25 @@
  *         (*) object args: dtor'd at the end of their invoking fcn's scope *
  *         (*) returned obj: assumed assigned as a val 2B dtor'd externally *
  *         (*) "immortal" obj: never dtor'd, see below to learn more        *
- *         => NOTE: THE LAST 2 ABOVE CAN BE DTOR'D W/ MACRO FLAGS 3-5 BELOW *
- *   OBJECT DECLARATION INVOCATION:                                         *
- *     (0) ONLY DEFAULT VALUES (DFLT VALS):                                 *
+ *         => NOTE: THE LAST 2 ABOVE CAN BE DTOR'D W/ MACRO FLAGS 3-4 BELOW *
+ *   OBJECT DECLARATIONS:                                                   *
+ *     (0) SINGLE/ARRAY OBJ DEFAULT VALS:                                   *
  *         (*) SINGLE:   "className objectName;"                            *
  *         (*) ARRAY:    "className objectName[size];"                      *
- *     (1) CTOR (AUTO-APPLIES DFLT VALS 1ST):                               *
+ *     (1) SINGLE/ARRAY OBJ CTORS (AUTO-APPLIES DFLTS 1ST):                 *
  *         (*) SINGLE:   "className objectName(args);"                      *
  *         (*) ARRAY:    "className objectName[size](args);"                *
  *     (2) OBJ PTRS & INITIALIZING W/ CTOR/DFLT/NEITHER ("alloc" = any fcn) *
- *         (*) "className *objectName;"                 // neither          *
+ *         (*) "className *objectName;" // "dangling" ptr, neither          *
  *         (*) "className *objectName(args);"           // ctor             *
  *         (*) "className *objectName(args) = alloc();" // ctor & dflt      *
+ *     (3) OBJ PTR BEST PRACTICES TO REDUCE RISK OF ERRORS:                 *
+ *         (*) DANGLING PTR: keep "immortal" unless class designed for ptrs *
+ *         (*) NON-DANGLING: allocate memory & ctor upon declaration        *
  *****************************************************************************
  *                  -:- DECLASS.C & "immortal" KEYWORD -:-                  *
  *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR                *
- *       (*) DECLARATION: "immortal className objName;"                     *
+ *       (*) DECLARATION: "immortal className objName(args);"               *
  *       (*) contained objects can also be immortal                         *
  *   (1) OBJ ARGS ALWAYS IMMORTAL: AS PLACEHOLDERS, THE PASSED OBJ THEY     *
  *       REPRESENT AREN'T OUT OF SCOPE ONCE FCN ENDS (NO DOUBLE DTOR)       *
@@ -336,7 +339,7 @@ int main() {
   printf("\nUsing the \"dummy\" constructor:\n");
   Student tessaR = Student("Tessa Randleman", 1678, 4.0); // also invokes the "Student" ctor while returning a ctor'd obj
   tessaR.show();
-  
+
 
   // Object array
   printf("\nWorking with an array of 6 \"Student\" objects:\n");
