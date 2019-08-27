@@ -10,6 +10,7 @@
 // #define DECLASS_NIMMORTAL    // disables default enabling of "immortal" keyword denoting objs that are never destroyed
 // #define DECLASS_DTORRETURN   // enables dtors for objects being returned
 // #define DECLASS_NOISYSMRTPTR // printf's alerts for every smrtptr.h's alloc/free (superseded by "DECLASS_NSMRTPTR")
+// #define DECLASS_NDEBUG       // disables all smrtptr.h's "smrtassert()" statements
 
 // users can list custom object memory allocation fcns to be recognized 
 // by declass.c in implementing constructors correctly for object ptrs
@@ -112,6 +113,7 @@
  *     (3) "#define DECLASS_NIMMORTAL"    => DISABLES "immortal" KEYWORD    *
  *     (4) "#define DECLASS_DTORRETURN"   => ALSO DTOR RETURNED OBJECTS     *
  *     (5) "#define DECLASS_NOISYSMRTPTR" => ALERT "SMRTPTR.H"'S ALLOC/FREE *
+ *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
