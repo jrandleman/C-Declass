@@ -52,7 +52,8 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## Enables My "`smrtptr.h`" Library By Default:
 * _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
-* "`smrtptr.h`"_'s functions work exactly like_ "`stdlib.h`"_'s with each prefixed by_ "`smrt`"
+* _Also improves upon_ "`assert.h`"_'s_ "`assert`" _function to free smart pointers prior exiting_
+* "`smrtptr.h`"_'s functions work exactly like_ `stdlib.h`/`assert.h`_'s with each prefixed by_ "`smrt`"
 * _Learn more about_ "`smrtptr.h`" _by checking it out in [my C-Library repository](https://github.com/jrandleman/C-Libraries) or [by clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
 * _Disable_ "`smrtptr.h`"_'s default inclusion via "Macro Flag" (2) below_
 --------------
@@ -126,6 +127,9 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
    ```
 5) ```c
    #define DECLASS_NOISYSMRTPTR // printf an alert whenever smrtptr.h allocates or frees
+   ```
+6) ```c
+   #define DECLASS_NDEBUG       // disable smrtptr.h "smrtassert()" statements
    ```
 ### Defining Custom Memory Allocation Functions:
 * `declass.c` _relies on identifying memory allocation functions to not apply dflt vals to garbage memory_
