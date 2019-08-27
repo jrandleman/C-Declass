@@ -133,6 +133,7 @@
  *     (3) "#define DECLASS_NIMMORTAL"    => DISABLES "immortal" KEYWORD    *
  *     (4) "#define DECLASS_DTORRETURN"   => ALSO DTOR RETURNED OBJECTS     *
  *     (5) "#define DECLASS_NOISYSMRTPTR" => ALERT "SMRTPTR.H"'S ALLOC/FREE *
+ *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
@@ -189,6 +190,7 @@ bool *SMRT_PTRS     = &DEFNS.defaults[2];  // confirms default inclusion of smrt
 bool *IMMORTALITY   = &DEFNS.defaults[3];  // confirms default enabling of "immortal" keyword       (default true)
 bool *DTOR_RETURN   = &DEFNS.defaults[4];  // returned objects also dtor'd                          (default false)
 bool *NOISY_SMRTPTR = &DEFNS.defaults[5];  // confirms whether to alert all smrtptr.h alloc/freeing (default false)
+bool NO_SMRTASSERT = false;                // deactivates all "smrtassert()" statements             (default false)
 
 /* NOTE: IT IS ASSUMED THAT USER-DEFINED ALLOCATION FCNS RETURN NULL OR END PROGRAM UPON ALLOC FAILURE */
 int TOTAL_ALLOC_FCNS = 4; // increases if user defines their own allocation fcns
@@ -282,15 +284,15 @@ int parse_class(char *, char [], int *);
 // declassed program contact header && "immortal" keyword
 #define DC_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
 #define IMMORTAL_KEYWORD_DEF "#define immortal // immortal keyword active\n"
+#define NDEBUG_SMRTPTR_DEF "#define DECLASS_NDEBUG // smartptr.h \"smrtassert()\"statements disabled\n"
 // smrtptr.h to implement stdlib.h's memory handling functions w/ garbage collection
-char DC_SMART_POINTER_H_[4500] = "\
+char DC_SMART_POINTER_H_[5000] = "\
 /****************************** SMRTPTR.H START ******************************/\n\
 // Source: https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer\n\
 #ifndef SMRTPTR_H_\n\
 #define SMRTPTR_H_\n\
 #include <stdio.h>\n\
 #include <stdlib.h>\n\
-#include <string.h>\n\
 // garbage collector & smart pointer storage struct\n\
 static struct SMRTPTR_GARBAGE_COLLECTOR {\n\
   long len, max; // current # of ptrs && max capacity\n\
@@ -310,6 +312,18 @@ static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {\n\
   fprintf(stderr, \"-:- FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM -:-\\n\\n\");\n\
   exit(EXIT_FAILURE); // still frees any ptrs allocated thus far\n\
 }\n\
+// acts like assert, but exits rather than abort to free smart pointers\n\
+#ifndef DECLASS_NDEBUG\n\
+#define smrtassert(condition) ({\\\n\
+  if(!(condition)) {\\\n\
+    fprintf(stderr, \"Smart Assertion failed: (%s), function %s, file %s, line %d.\\n\", #condition, __func__, __FILE__, __LINE__);\\\n\
+    fprintf(stderr, \">> Freeing Allocated Smart Pointers & Terminating Program.\\n\\n\");\\\n\
+    exit(EXIT_FAILURE);\\\n\
+  }\\\n\
+})\n\
+#else\n\
+#define smrtassert(condition)\n\
+#endif\n\
 // smrtptr stores ptr passed as arg to be freed atexit\n\
 void smrtptr(void *ptr) {\n\
   // free ptrs atexit\n\
@@ -518,9 +532,11 @@ int main(int argc, char *argv[]) {
   char *headed_new_file_ptr = HEADED_NEW_FILE;
   sprintf(headed_new_file_ptr,"/* DECLASSIFIED: %s\n * %s\n", filename, DC_SUPPORT_CONTACT);
   headed_new_file_ptr += strlen(headed_new_file_ptr);
-  if(*IMMORTALITY) sprintf(headed_new_file_ptr,"%s", IMMORTAL_KEYWORD_DEF); // include "immortal" keyword if active
+  if(*IMMORTALITY)   sprintf(headed_new_file_ptr,"%s", IMMORTAL_KEYWORD_DEF); // include "immortal" keyword if active
   headed_new_file_ptr += strlen(headed_new_file_ptr);
-  if(*SMRT_PTRS)   sprintf(headed_new_file_ptr,"%s", DC_SMART_POINTER_H_);  // include smrtptr.h if active
+  if(NO_SMRTASSERT) sprintf(headed_new_file_ptr,"%s", NDEBUG_SMRTPTR_DEF);    // disable smrtptr.h smrtassert() if active
+  headed_new_file_ptr += strlen(headed_new_file_ptr);
+  if(*SMRT_PTRS)     sprintf(headed_new_file_ptr,"%s", DC_SMART_POINTER_H_);  // include smrtptr.h if active
   headed_new_file_ptr += strlen(headed_new_file_ptr);
   sprintf(headed_new_file_ptr,"\n\n%s", NEW_FILE);
   
@@ -562,12 +578,15 @@ void add_braces(char file_contents[]) {
           if(is_at_substring(&file_contents[l], "DECLASS_ALLOC_FCNS")) {
             register_user_defined_alloc_fcns(&file_contents[l]);
             // skip over user-defined fcns & don't copy to new file (don't want to #define fcn names redefined later)
-            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\'))
-              ++l;
+            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\')) ++l;
+          } 
+          if(is_at_substring(&file_contents[l], "DECLASS_NDEBUG") && !VARCHAR(file_contents[l+strlen("DECLASS_NDEBUG")])) {
+            NO_SMRTASSERT = true;
+            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\')) ++l;
           }
           for(; flag < TOTAL_FLAGS; ++flag)
             if(is_at_substring(&file_contents[l], DEFNS.flags[flag]) 
-              && !VARCHAR(file_contents[l+strlen(DEFNS.flags[flag])])) { 
+              && !VARCHAR(file_contents[l+strlen(DEFNS.flags[flag])])) {               
               DEFNS.defaults[flag] = DEFNS.non_dflt[flag], i = l + strlen(DEFNS.flags[flag]);
               sprintf(&BRACED_FILE[j], "\n#define %s", DEFNS.flags[flag]);
               j = strlen(BRACED_FILE);
@@ -587,7 +606,7 @@ void add_braces(char file_contents[]) {
 
     // check for else if, if, else, while, & for
     for(k = 0; !in_a_string && k < TOTAL_BRACE_KEYWORDS; ++k)
-      if(is_at_substring(&file_contents[i],brace_keywords[k]) && !VARCHAR(file_contents[i-1]) 
+      if(is_at_substring(&file_contents[i],brace_keywords[k]) && !VARCHAR(file_contents[i-1]) && file_contents[i-1] != '#' 
         && !VARCHAR(file_contents[i+strlen(brace_keywords[k])])) {                    // at a "brace keyword"
         for(int l = 0, len = strlen(brace_keywords[k]); l < len; ++l)                 // skip brace keyword
           BRACED_FILE[j++] = file_contents[i++]; 
