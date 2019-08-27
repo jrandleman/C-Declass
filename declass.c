@@ -102,14 +102,17 @@
  *         (*) "immortal" obj: never dtor'd, see below to learn more        *
  *         => NOTE: THE LAST 2 ABOVE CAN BE DTOR'D W/ MACRO FLAGS 3-4 BELOW *
  *   OBJECT DECLARATIONS:                                                   *
- *     (0) USING CTORS (AUTO-APPLIES DFLT VALS 1ST):                        *
+ *     (0) SINGLE/ARRAY OBJ DEFAULT VALS:                                   *
+ *         (*) SINGLE:   "className objectName;"                            *
+ *         (*) ARRAY:    "className objectName[size];"                      *
+ *     (1) SINGLE/ARRAY OBJ CTORS (AUTO-APPLIES DFLTS 1ST):                 *
  *         (*) SINGLE:   "className objectName(args);"                      *
  *         (*) ARRAY:    "className objectName[size](args);"                *
- *     (1) OBJ PTRS & INITIALIZING W/ CTOR/DFLT/NEITHER ("alloc" = any fcn) *
+ *     (2) OBJ PTRS & INITIALIZING W/ CTOR/DFLT/NEITHER ("alloc" = any fcn) *
  *         (*) "className *objectName;" // "dangling" ptr, neither          *
  *         (*) "className *objectName(args);"           // ctor             *
  *         (*) "className *objectName(args) = alloc();" // ctor & dflt      *
- *     (2) OBJ PTR BEST PRACTICES TO REDUCE RISK OF ERRORS:                 *
+ *     (3) OBJ PTR BEST PRACTICES TO REDUCE RISK OF ERRORS:                 *
  *         (*) DANGLING PTR: keep "immortal" unless class designed for ptrs *
  *         (*) NON-DANGLING: allocate memory & ctor upon declaration        *
  *****************************************************************************
