@@ -1,4 +1,4 @@
-// AUTHOR: JORDAN RANDLEMAN -- declass_deque.c -- implementing a deque linked list via declass.c
+// AUTHOR: JORDAN RANDLEMAN -- deque_class.c -- implementing a deque linked list via declass.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
