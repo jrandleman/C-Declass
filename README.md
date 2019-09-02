@@ -19,7 +19,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ```c
 /*****************************************************************************
  *                 -:- DECLASS.C 10 CAVEATS WRT CLASSES -:-                 *
- *   (0) RESERVED: "DC_" PREFIX, "this" PTR, "CONST", & STORAGE VARIABLES   *
+ *   (0) RESERVED: "DC_" PREFIX,"this" PTR,"CONST","INLINE", & STORAGE VARS *
  *   (1) DECLARE CLASSES GLOBALLY & OBJECTS LOCALLY (NEVER IN STRUCT/UNION) *
  *   (2) DECLARE MEMBERS/METHODS USED IN A METHOD ABOVE ITS DECLARATION     *
  *   (3) DECLARE CLASS MEMBERS, METHODS, & OBJECTS INDIVIDUALLY:            *
