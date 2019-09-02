@@ -7,7 +7,6 @@
 #define SMRTPTR_H_
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 // garbage collector & smart pointer storage struct
 static struct SMRTPTR_GARBAGE_COLLECTOR {
   long len, max; // current # of ptrs && max capacity
@@ -27,6 +26,18 @@ static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {
   fprintf(stderr, "-:- FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM -:-\n\n");
   exit(EXIT_FAILURE); // still frees any ptrs allocated thus far
 }
+// acts like assert, but exits rather than abort to free smart pointers
+#ifndef DECLASS_NDEBUG
+#define smrtassert(condition) ({\
+  if(!(condition)) {\
+    fprintf(stderr, "Smart Assertion failed: (%s), function %s, file %s, line %d.\n", #condition, __func__, __FILE__, __LINE__);\
+    fprintf(stderr, ">> Freeing Allocated Smart Pointers & Terminating Program.\n\n");\
+    exit(EXIT_FAILURE);\
+  }\
+})
+#else
+#define smrtassert(condition)
+#endif
 // smrtptr stores ptr passed as arg to be freed atexit
 void smrtptr(void *ptr) {
   // free ptrs atexit
