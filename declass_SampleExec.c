@@ -1,12 +1,20 @@
 // Author: Jordan Randleman - Sample Implementation of Classes for 'declass.c'
 #include <stdio.h>
 #include <string.h>
-#include <float.h>
-#include <stdbool.h>
 #include <stdlib.h>
+// declass.c - Optional Interpreter Flags (ordered by precedence)
+// allows user to tweak how their program gets converted to classes if they so desire
+// #define DECLASS_IGNORE       // prevents declass.c from parsing file
+// #define DECLASS_STRICTMODE   // disables smrtptr.h & "immortal" keyword, & enables dtors for returned objs
+// #define DECLASS_NSMRTPTR     // disables default inclusion of "smrtptr.h" library for garbage collection
+// #define DECLASS_NIMMORTAL    // disables default enabling of "immortal" keyword denoting objs that are never destroyed
+// #define DECLASS_DTORRETURN   // enables dtors for objects being returned
+// #define DECLASS_NOISYSMRTPTR // printf's alerts for every smrtptr.h's alloc/free (superseded by "DECLASS_NSMRTPTR")
+// #define DECLASS_NDEBUG       // disables all smrtptr.h's "smrtassert()" statements
 
-
-// #define DECLASS_ALLOC_FCNS allocer, callocer, alloc
+// users can list custom object memory allocation fcns to be recognized 
+// by declass.c in implementing constructors correctly for object ptrs
+// #define DECLASS_ALLOC_FCNS allocer1, allocer2 // NOTE: declass.c default recognizes malloc/calloc/smrtmalloc/smrtcalloc
 
 /*****************************************************************************
  ||^\\ //=\\ //=\ /| |\ /\\  //\ /|==\ /\\ ||==== //^\\ ==== ==== //=\\ /\\ ||
@@ -116,45 +124,26 @@
  *     (2) list alloc fcn names after a "#define DECLASS_ALLOC_FCNS" macro  *
  *****************************************************************************/
 
+
 class Student {
-  // note that class if(member) values; default to 0 unless otherwise indicated
-  char *fullname = smrtmalloc(sizeof(char) * 50);
+  // note that class member values default to 0 unless otherwise indicated, &
+  // smrtmalloc/smrtcalloc default values are freed automatically atexit if 
+  // "DECLASS_NSMRTPTR" not #defined
+  char *fullname = smrtmalloc(sizeof(char)*50); 
   char school[15] = "SCU";         // default school name
   int year = 14;                   // default school year 
   long studentId;
-  char *(*copy_fcnPtr)() = strcpy; // function pointer member default value
+  char *(*copy_fcnPtr)() = strcpy; // fcn ptr member default value
 
   struct grade_info {
     char major[50]; 
     float out_of;
     float gpa;
-    float how;
-    float about;
-    float that;
-  } grades;//={"Computer Science Engineering", 4.0}; /* assign struct values like vanilla C, via brace notation */
-
-
-  bool unionIsInt = true; // else is char
-  union MyU {
-    int n;
-    char c;
-  } MYU;
-
-  int stable = 1;
-
-
-  Student(int x, int y) {
-    printf("CONSTRUCTOR: %d && %d\n", x, y);
-  }
-
-  ~Student() {
-    printf("\"Student\" object named \"%s\" Destroyed!\n", fullname);
-  }
-
+  } grades = {"Computer Science Engineering", 4.0}; /* assign struct values like vanilla C, via brace notation */
 
   // note that class methods can refer to their class' members & other methods
-  // without any prefixes, as declass.c will automatically detect which class
-  // object is invoking the method & implement the appropriate operations.
+  // w/o any prefixes, as declass.c will detect which class object is invoking
+  // the method & implement the appropriate operations.
   void assignName(char *fname) {
     copy_fcnPtr(fullname, fname);
   }
@@ -167,106 +156,168 @@ class Student {
   void show() {
     if(getId()) {
       printf("Name: %s, School: %s, Year: %d, id: %ld", fullname, school, year, studentId);
-      // printf(" Major: %s, GPA: %.1f/%.1f\n", grades.major, grades.gpa, grades.out_of);
+      printf(" Major: %s, GPA: %.1f/%.1f\n", grades.major, grades.gpa, grades.out_of);
     }
   }
 
+  // note: neither constructors (ctors) nor destructors (dtors) ever have a return value
 
-  int get10() {
-    int sum = 0;
-    for(int i = 0; i < 11; ++i)
-      sum += i;
-    return sum;
+  // format a class ctor by making a "typeless" method w/ the class' name
+  // => gets invoked at every object delcaration so long as "(<args>)" are provided,
+  //    otherwise object only get default values w/o calling its ctor
+  Student(char *userName, long id, float gpa) {
+    assignName(userName);
+    assignId(id);
+    assignGpa(gpa);
   }
 
-  // // method to create a new object
-  // Student createAStudent(char *name, long id, float gpa) {
-  //   Student methodMadeStudent;
-  //   methodMadeStudent.assignName(name);
-  //   methodMadeStudent.assignId(id);
-  //   methodMadeStudent.assignGpa(gpa);
-  //   return methodMadeStudent;
-  // }
-  // // method swaps 2 student objects by using 'this' pointer 
-  // // to refer to the invoking object as a whole
-  // void swap(Student *blankStudent) { 
-  //   Student temp = *this;
-  //   *this = *blankStudent; 
-  //   *blankStudent = temp;
-  // }
+  // format a class dtor like a ctor, except w/ a '~' prefix (unary 'not' operator)
+  // => note: dtors NEVER have args
+  ~Student() {
+    printf("\"Student\" object named \"%s\" Destroyed!\n", fullname);
+  }
+
+  // method to create a new object
+  Student createAStudent(char *name, long id, float gpa) {
+    Student methodMadeStudent;
+    methodMadeStudent.assignName(name);
+    methodMadeStudent.assignId(id);
+    methodMadeStudent.assignGpa(gpa);
+    return methodMadeStudent;
+  }
+
+  // method swaps 2 student objects by using 'this' ptr 
+  // to refer to the invoking object as a whole entity
+  void swap(Student *blankStudent) { 
+    // note that since "DECLASS_NIMMORTAL" is not #defined, the "immortal" prefix 
+    // means that the "Student" dtor will never be called for this "temp" object
+    immortal Student temp = *this; 
+    *this = *blankStudent; 
+    *blankStudent = temp;
+  }
 }
 
 
 
-class Box {
-  int num = 222;
-  immortal Student child[3](100, 200);
-  void showNum() { printf("%d\n", num); }
-  ~Box() {
-    printf("\"Box\" object Destroyed!\n");
+class College {
+  // contained array of "Student" objects w/in each "College" object
+  immortal Student body[10]; // note the "immortal" prefix
+  char name[20];
+  int foundingYear;
+  char state[3] = "CA";
+
+  void addName(char *uniName) { strcpy(name, uniName); }
+  void addFoundingAndName(int founded, char *name) {
+    if(founded < 0) printf("A school founded in BC? Really?\n");
+    foundingYear = founded;
+    // note "name" redefinition from argument overides this class' "name"
+    // member, so assign the College object's name value via another method
+    addName(name); 
+  }
+  void addStudents(char names[10][20], float gpas[10], long ids[10]) {
+    for(int i = 0; i < 10; ++i) {
+      if(i % 2 == 0)                        // same name-assignment operation via 2 approaches
+        strcpy(body[i].fullname, names[i]); // access member's fullname directly
+      else
+        body[i].assignName(names[i]);       // use member's own method to assign its name
+      body[i].assignGpa(gpas[i]);
+      body[i].assignId(ids[i]);
+    }
   }
 
-  Student *bonzo(9999, 9999) = smrtmalloc(sizeof(Student));
+  void show() {
+    printf("College Name: %s, State: %s, Year Founded: %d.\n", name, state, foundingYear);
+    printf("%s's Students:\n", name);
+    for(int i = 0; i < 10; ++i) {
+      printf("\tStudent No%d: ", i + 1);
+      body[i].show();
+    }
+  }
+  ~College() { // "College" object destructor
+    printf("\"College\" object named \"%s\" Destroyed!\n", name);
+  }
+}
 
-  void demo() {
-    Student *myGal = smrtmalloc(sizeof(Student)); // assigns default values since memory gets allocated
-    if(9 > 10) {
-      ~myGal();
+
+
+class Region {
+  College schools[2];
+  int totalSchools; // class members default to 0, no need to assign
+  char regionName[20];
+
+  // note that ctors can be used to initialize contained
+  // objects w/ the same notation as w/ any other context:
+  // see the main function below for more examples
+  Student topStudent("Stephen Prata", 12121212, 4.0);
+  Student second3rd4thBestStudents[3]("John Doe", 11111110, 8.0);
+
+  void setRegionName(char *name) { strcpy(regionName, name); }
+  void addSchool(College school) {
+    if(totalSchools == 2) {
+      printf("Region Maxed out of Schools!\n");
       return;
     }
+    schools[totalSchools++] = school;
+    /* note below the access to immediate contained member 'Student' w/in 'College': despite
+     * being in a 'Region' method, outermost object 'College' still only accessing its
+     * immediate 'Student' member (so valid by caveat 8). If this were outside of the
+     * method and invoked as "RegionObj.schools[0].body[0].assignName("CAMERON")",
+     * caveat 8 would be violated & cause undefined behavior since the outermost
+     * object class name 'Region' is 2 layers rmvd (no immediate access) from its
+     * "College" array's "Student" array member */ 
+    schools[totalSchools-1].body[totalSchools - totalSchools].assignName("CAMERON"); 
   }
-
-  Box(int num) {
-    printf("\"BOX\" OBJECT CREATED!, NUMBER PASSED: %d\n", num);
+  void show() {
+    printf("Region Name: %s, Total Schools: %d.\n", regionName, totalSchools);
+    for(int i = 0; i < totalSchools; ++i) {
+      printf("School No%d:\n", i + 1);
+      schools[i].show();
+    }
   }
-
+  void showTopStudents() {
+    printf("\tThe %s Region's Top Student:\n\t\t", regionName);
+    topStudent.show();
+    printf("\tThe Next 3 Runner-Ups:\n");
+    for(int i = 0; i < 3; ++i) {
+      printf("\t\t");
+      second3rd4thBestStudents[i].show();
+    }
+  }
 }
 
-int rando() {
-  return (8 < 9) ? 3 : 82;
+
+
+// note that objects acting as arguments never have their dtor invoked, as the object
+// they represent will be dtor'd in its own scope outside this fcn (prevents double dtors)
+void showAllNames(Student person, Student *sharpStudent, Student people[6]) {
+  char personName[30], people3Name[30], sharpStudentName[30];
+  person.getName(personName);
+  people[3].getName(people3Name);
+  sharpStudent -> getName(sharpStudentName);
+  printf("person's Name: %s, people[3]'s Name: %s", personName, people3Name);
+  printf(", *sharpStudent's Name: %s\n", sharpStudentName);
 }
+
+
+College createCollege(char *name, int foundingYear) {
+  // note that so long as "#define DECLASS_DTORRETURN" is not active, returned
+  // objects also don't have their dotrs invoked to ensure objects get the
+  // value they expect from a function (w/o it being literally destroyed B4 being returned)
+  College someUniversity; 
+  someUniversity.addName(name);
+  someUniversity.foundingYear = foundingYear;
+  return someUniversity;
+}
+
 
 
 int main() {
 
   // Single object
-
-
-  Box card = Box(88); 
-  card.demo();
-
-
-  Student myGuy = Student(7, 13);
-  ~myGuy();
-
-
-  immortal Student kids[3](88, 99);
-
-  Student *bobby(8,8) = smrtmalloc(sizeof(Student));
-  strcpy(bobby->fullname, "heelo");
-  ~bobby();
-
-
-  // 3 TYPES OF PTR INIT:
-  // ONLY DFLT: className *objName = malloc(sizeof(className));
-  // ONLY CTOR: className *objName(args);
-  // DFLT CTOR: className *objName(args) = malloc(sizeof(className));
-
-
-  // ALLOW USERS TO REGISTER THEIR OWN UNIQUE MEMORY ALLOCATION FCN NAMES 
-  // TO ADD TO DETECTED "MALLOC" "CALLOC" & SMRT VARIANTS FOR PTR ASSIGNMENT ???
-
-
-  // assigns default values AND invokes ctor since memory gets allocated
-  // Student *razor(101, 200); // would only invoke ctor since no guarantee alloc'd memory for dflts 
-  immortal Student *razor; 
-
-
-  Student random(1, 2);
-
-
   printf("Working with a single \"Student\" object:\n");
-  Student jordanCR(3, 4);
+  // note that no parenthesis means no ctor, 'jordanCR' 
+  // will only start out w/ it's default values
+  Student jordanCR; 
   jordanCR.assignId(1524026);              // assign ID to Student object
   long myId = jordanCR.getId();            // get ID
   if(2 * jordanCR.getId() > 1000)
@@ -276,21 +327,148 @@ int main() {
   printf("\t");
   jordanCR.show();                         // output information
 
-  if(jordanCR.stable) printf("\nstable: %d\n", jordanCR.stable);
 
-  if(jordanCR.unionIsInt) {
-    printf("union int: %d\n", jordanCR.MYU.n);
+  // Single object constructor
+  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
+  Student koenR("Koen Randleman", 1122334, 4.0); // invoke an object's class ctor by declaring it like a fcn
+  printf("\t");
+  koenR.show();
+
+
+  // Single object "dummy" constructor
+  // referred to as a "dummy ctor" since it changes no actual objects directly,
+  // rather it returns a premade object initilaized by user's ctors & dflt vals
+  printf("\nUsing the \"dummy\" constructor:\n");
+  Student tessaR = Student("Tessa Randleman", 1678, 4.0); // also invokes the "Student" ctor while returning a ctor'd obj
+  tessaR.show();
+
+
+  // Object array
+  printf("\nWorking with an array of 6 \"Student\" objects:\n");
+  Student class[6];
+  char names[6][20] = {"Cameron", "Sidd", "Austin", "Sabiq", "Tobias", "Gordon"};
+  for(int i = 0; i < 6; ++i) {
+    class[i].assignName(names[i]);
+    class[i].assignId(i * 256 + 1000000);
+    class[i].assignGpa(i * 0.75); // sorry Cameron
+  }
+  for(int i = 0; i < 6; ++i) {
+    printf("\t");
+    class[i].show();
   }
 
-  jordanCR.MYU.c = 65;
 
-  jordanCR.unionIsInt = !jordanCR.unionIsInt;
+  // Object array constructor
+  printf("\nWorking with a constructor to initialize an array of 6 \"Student\" objects:\n");
+  // => note that to use a ctor w/ an array of objects, denote it like  a single obj
+  //    while treating the array subscript as part of its name
+  // => note that arrays w/ a ctor apply it across all of its elements
+  Student group[6]("group_student", 1111111, 3.0);
+  for(int i = 0; i < 6; ++i) {
+    printf("\t");
+    group[i].show();
+  }
 
-  if(!jordanCR.unionIsInt)
-    printf("union char: %c\n", jordanCR.MYU.c);
 
-  int total = jordanCR.get10();
-  printf("total: %d\n", total);
+  // Object pointer
+  printf("\nWorking with a \"Student\" object pointer:\n");
+  Student *TJ = &class[5]; // object ptr assigned address of 6th object in object array
+  TJ -> assignName("TJ");  // arrow notation to invoke ptr object members & methods
+  printf("\t");
+  TJ->show();
+  long tjId = TJ-> getId();
+  printf("\tTJ \"Student\" object pointer's ID: %ld\n", tjId);
+
+
+  // Object pointer constructor
+  // use a constructor and allocator together in order to allocate 
+  // memory then construct an object with a ptr
+  printf("\nAllocating and constructing a \"Student\" object pointer in a single line:\n");
+  Student *Alex("Alex", 88888, 4.0) = smrtmalloc(sizeof(Student));
+  Alex -> show();
+
+
+  // Explicitly invoking an object's destructor
+  // immediately invokes user-defined dtor for the object
+  printf("\nExplicitly invoking a \"Student\" object's destructor:\n");
+  ~Alex();
+
+
+  // Object containment (objects w/in objects)
+  printf("\nWorking with contained \"Student\" objects within a \"College\" object:\n");
+  // note that despite not having defined a "College" ctor, declass.c will automatically generate one
+  // for any classes w/out a user-defined ctor (same goes w/ dtors) so that the '()' notation is always 
+  // valid. in this case, however, it's the same effect as if we left them out (only default values)
+  College Scu();  
+  Scu.addFoundingAndName(1851, "SCU");
+  char studentNames[10][20] = {"Cameron","Sidd","Austin","Sabiq","Tobias","Gordon","Jason","Ronnie","Kyle","Peter"};
+  float studentGpas[10]     = {4.0, 3.9, 4.0, 3.9, 4.0, 3.9, 4.0, 3.9, 4.0, 3.9};
+  long studentIds[10]       = {4000000,3900000,3800000,3700000,3600000,3500000,3600000,3700000,3800000,3900000};
+  Scu.addStudents(studentNames, studentGpas, studentIds);
+  // Note that all member objects in the College object's 'Student' array are initialized w/ their majors/max GPA.
+  // Classes auto-ctor their contained member objects w/ the appropriate default values as well & set ptrs to NULL
+  Scu.show(); 
+
+
+  // Passing an object by value, pointer, & array to another function
+  printf("\nPassing an object pointer, array, & value to another function:\n");
+  printf("\t");
+  showAllNames(jordanCR, TJ, class);
+
+
+  // Having a function return an object
+  printf("\nHaving a function make & return a \"College\" object:\n");
+  // note the College object is initialized by a value (in this case a function)
+  // thus the otherwise default-value construction won't be triggered
+  College SantaClara = createCollege("Santa Clara", 1851); 
+  printf("\tSantaClara \"College\" object Name: %s, State: %s, Year Founded: %d\n", 
+    SantaClara.name, SantaClara.state, SantaClara.foundingYear);
+
+
+  // Having a method make & return an object
+  Student willAR = jordanCR.createAStudent("Will Randleman", 1524027, 4.0);
+  printf("\nHaving a method make & return a \"Student\" object:\n");
+  printf("\t");
+  willAR.show();
+
+
+  // Having a method swap 2 objects via '*this' pointer
+  printf("\nHaving a method swap 2 \"Student\" objects via '*this' pointer in method:\n");
+  Student jowiR;
+  jowiR.assignName("Jowi Randleman");
+  jowiR.assignId(5052009);
+  jowiR.assignGpa(100);
+  printf("\tjowiR object pre-swap:   ");
+  jowiR.show();
+  printf("\twillAR object pre-swap:  ");
+  willAR.show();
+  willAR.swap(&jowiR); // pass 'jowiR' obj by address to be recieved as ptr & change it's data (as w/ any data type)
+  printf("\tjowiR object post-swap:  ");
+  jowiR.show();
+  printf("\twillAR object post-swap: ");
+  willAR.show();
+
+
+  // Multi-layer object containment - A 'Region' obj containing a 'College' obj array each containing a 'Student' obj array
+  printf("\nMulti-Layer Object Containment - \"Region\" object containing");
+  printf(" a \"College\" object array each containing a \"Student\" object array:\n");
+  // note the "immortal" prefix means that this "Region" object will never be destroyed,
+  // including none of its 
+  immortal Region SiliconValley; 
+  SiliconValley.setRegionName("Silicon Valley");
+  SiliconValley.addSchool(Scu);
+  SiliconValley.schools[0].addName("S C U"); // accessing immediate contained object member's method (valid by caveat 8)
+  char scuNames[10][20] = {"Joel","Aimee","Danny","Kailyn","Ashley","Brendan","Olivia","Tanner","Guillermo","John"};
+  float scuGpas[10]     = {4.0, 9.0, 10.0, 7.0, 8.0, 0.5, 6.0, 3.9, 4.0, 3.9};
+  long scuIds[10]       = {1000001, 1000002, 1000003, 1000004, 1000005, 1000006, 1000007, 1000008, 1000009, 1000010};
+  SantaClara.addStudents(scuNames, scuGpas, scuIds);
+  SiliconValley.addSchool(SantaClara);
+  SiliconValley.show();
+
+
+  // Showing a "Region" object's contained "Student" object & object array initialized w/ a ctor
+  printf("\nShowing a \"Region\" object's contained \"Student\" object & object array initialized w/ a ctor:\n");
+  SiliconValley.showTopStudents();
 
   return 0;
 }
