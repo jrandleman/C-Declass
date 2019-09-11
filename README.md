@@ -4,7 +4,7 @@
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
-### Compile (_add '`-l`' for class info!_): 
+### Compile [declass.c](https://github.com/jrandleman/Declass-C/blob/master/declass.c) (_add '`-l`' for [class info](#-l-output-for-the-simple-sample-stack-class)!_): 
 ```c
 $ gcc -o declass declass.c
 $ ./declass yourFile.c // ./declass -l yourFile.c
@@ -52,7 +52,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 --------------
 ## Enables My "`smrtptr.h`" Library By Default:
 * _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
-* _Also improves upon_ "`assert.h`"_'s_ "`assert`" _function to free smart pointers prior exiting_
+* _Improves upon_ "`assert.h`"_'s_ "`assert`" _function to free smart pointers prior exiting_
 * "`smrtptr.h`"_'s functions work exactly like_ `stdlib.h`/`assert.h`_'s with each prefixed by_ "`smrt`"
 * _Learn more about_ "`smrtptr.h`" _by checking it out in my_ [C-Library](https://github.com/jrandleman/C-Libraries)  _repository or by_ [clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)
 * _Disable_ "`smrtptr.h`"_'s default inclusion via_ [Macro Flag (2)](#declass-cs-pre-preprocessor-specialization-macro-flags)
