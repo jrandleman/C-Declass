@@ -81,7 +81,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * **3 kinds of objects are never dtor'd in their immediate scope:**       
   1) _**Object Arguments**: passed object gets dtor'd instead at the end of their declaration's scope_
   2) _**Returned Objects**: assumed being assigned as a value that's dtor'd externally_
-  3) _**"immortal" Objects:** never dtor'd,_ [see below to learn more](#the-immortal-keyword)
+  3) _**"immortal" Objects:** never dtor'd,_ [see below](#the-immortal-keyword) _to learn more_
      * _**Note**: (ii) and (iii) can be dtor'd via_ [Macro Flags 3-4](#declass-cs-pre-preprocessor-specialization-macro-flags)
 
 ### Object Declarations:
