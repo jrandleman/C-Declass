@@ -12,7 +12,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
 * _Provided_ "`declass_SampleExec.c`" _demos classes, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
-* _Adhere to the 10 caveats & use_ "`declass_SampleExec.c`" _as an operations reference!_
+* _Adhere to the_ [10 Caveats](#declass-cs-10-caveats-straight-from-declassc) _& use_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _as an operations reference!_
 --------------
 ## Declass-C's 10 Caveats, Straight From "`declass.c`":
 * _**Note**: whereas 0-2 pertain to formatting, 3-9 relate to restricted class operations with possible alternatives_
@@ -54,15 +54,15 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
 * _Also improves upon_ "`assert.h`"_'s_ "`assert`" _function to free smart pointers prior exiting_
 * "`smrtptr.h`"_'s functions work exactly like_ `stdlib.h`/`assert.h`_'s with each prefixed by_ "`smrt`"
-* _Learn more about_ "`smrtptr.h`" _by checking it out in [my C-Library repository](https://github.com/jrandleman/C-Libraries) or [by clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)_
-* _Disable_ "`smrtptr.h`"_'s default inclusion via "Macro Flag" (2) below_
+* _Learn more about_ "`smrtptr.h`" _by checking it out in my_ [C-Library](https://github.com/jrandleman/C-Libraries)  _repository or by_ [clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)
+* _Disable_ "`smrtptr.h`"_'s default inclusion via_ [Macro Flag (2)](#declass-cs-pre-preprocessor-specialization-macro-flags)
 --------------
 ## Using Constructors (Ctors) & Destructors (Dtors):
 ### Formatting:                                                           
 * **Ctors are denoted as a _typeless method with their class' name_:**     
   * _Can initialize contained object members as a default value_
   * _User-invoked in object declaration, declass.c will automatically* apply default values first_
-    * _***Note**: declass.c will **only** apply default values to object ptrs declared as allocated & constructed_
+    * _***Note**: declass.c **only** applies default values to object ptrs if declared as allocated & constructed_
   * _Can take arguments_
 * **Dtors are denoted like Ctors, _but prefixed with '~'_:**       
   * _Container objects automatically dtor any member objects first when destroyed_
@@ -81,8 +81,8 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * **3 kinds of objects are never dtor'd in their immediate scope:**       
   1) _**Object Arguments**: passed object gets dtor'd instead at the end of their declaration's scope_
   2) _**Returned Objects**: assumed being assigned as a value that's dtor'd externally_
-  3) _**"immortal" Objects:** never dtor'd, see below to learn more_
-     * _**Note**: 2 and 3 can be dtor'd via "Macro Flags" 3-4 below_
+  3) _**"immortal" Objects:** never dtor'd,_ [see below to learn more](#the-immortal-keyword)
+     * _**Note**: (ii) and (iii) can be dtor'd via_ [Macro Flags 3-4](#declass-cs-pre-preprocessor-specialization-macro-flags)
 
 ### Object Declarations:
 * _**Note**: suppose class_ "`className`"_, object_ "`objName`"_, & an object memory allocation function_ "`alloc`"
@@ -97,7 +97,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * _**Ctor'd Ptr**:_ `className *objName(args); // only advised if Ctor also allocates memory`
   * _**Ctor'd & Alloc'd Ptr**:_ `className *objName(args) = alloc(sizeof(className)); // best choice`
 * **Object Pointer Best Practices to Reduce Risk of Errors:**       
-  * _**"Dangling" Ptr**: keep "immortal" unless class specifically designed for ptrs_
+  * _**"Dangling" Ptr**: keep_ [immortal](#the-immortal-keyword) _unless class specifically designed for ptrs_
   * _**Non-Dangling**: allocate memory & Ctor upon declaration_
 --------------
 ## The "immortal" Keyword:
@@ -106,7 +106,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _**Contained objects** can **also** be immortal!_
 ### Object Arguments are Always "immortal":
 * _As placeholders, the passed object they represent aren't out of scope once the fcn ends (no double Dtor)_
-* _"Macro Flag" (3) below disables **all** immortal objects **except** object arguments_
+* [Macro Flag (3)](#declass-cs-pre-preprocessor-specialization-macro-flags) _below disables **all** immortal objects **except** object arguments_
 --------------
 ## Declass-C's Pre-Preprocessor Specialization Macro Flags:
 ### By Precedence:
@@ -136,12 +136,12 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * `declass.c` _de facto recognizes_ `malloc`_,_ `calloc`_,_ `smrtmalloc`_, and_ `smrtcalloc`
 * _Users can declare custom object memory allocation fcns to be recognized by_ `declass.c` _via the macro:_
 ```c
-#define DECLASS_ALLOC_FCNS // list custom alloc fcns here
+#define DECLASS_ALLOC_FCNS // list custom alloc fcns here, as TOKENS not as STRINGS
 ```
 * _**Note:**_ **`declass.c`** _**assumes all allocation functions return**_ **`NULL`** _**or terminate the program upon failure!**_
 --------------
 ## A Simple Sample Stack Class:
-* _**Note**:_ "`declass_SampleExec.c`"_, has **much** more on object ctors/dtors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h autonomous freeing, methods using "this" ptr, and more!_
+* _**Note**:_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _, has **much** more on object ctors/dtors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h autonomous freeing, methods using "this" ptr, and more!_
 * _**Note**: for those unfamiliar with OOP, "members" are class variables and "methods" are class functions_
 ```c
 #include <stdio.h>
@@ -237,7 +237,7 @@ int main() {
 --------------
 ## '`-l`' Output for the Simple Sample Stack Class:
 * _**Note**: helps confirm whether or not your class code converted as anticipated!_ 
-  * _refer to the 10 caveats &_ "`declass_SampleExec.c`" _otherwise!_
+  * _refer to the_ [10 Caveats](#declass-cs-10-caveats-straight-from-declassc) _&_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _otherwise!_
 ```
 --=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 2 ]=--
 
