@@ -22,7 +22,7 @@ static void smrtptr_free_all() {
 }
 // throws invalid allocation errors
 static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {
-  fprintf(stderr, "-:- ERROR: COULDN'T %s MEMORY FOR SMRTPTR.H'S %s -:-\n\n", alloc_type, smrtptr_h_fcn);
+  fprintf(stderr, "\n-:- \033[1m\033[31mERROR\033[0m COULDN'T %s MEMORY FOR SMRTPTR.H'S %s -:-\n\n", alloc_type, smrtptr_h_fcn);
   fprintf(stderr, "-:- FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM -:-\n\n");
   exit(EXIT_FAILURE); // still frees any ptrs allocated thus far
 }
@@ -30,7 +30,7 @@ static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {
 #ifndef DECLASS_NDEBUG
 #define smrtassert(condition) ({\
   if(!(condition)) {\
-    fprintf(stderr, "Smart Assertion failed: (%s), function %s, file %s, line %d.\n", #condition, __func__, __FILE__, __LINE__);\
+    fprintf(stderr, "\n\033[1m\033[31mERROR\033[0m Smart Assertion failed: (%s), function %s, file %s, line %d.\n", #condition, __func__, __FILE__, __LINE__);\
     fprintf(stderr, ">> Freeing Allocated Smart Pointers & Terminating Program.\n\n");\
     exit(EXIT_FAILURE);\
   }\
@@ -46,7 +46,7 @@ void smrtptr(void *ptr) {
   if(SMRTPTR_GC.len == -1) {
     SMRTPTR_GC.ptrs = malloc(sizeof(void *) * 10);
     if(!SMRTPTR_GC.ptrs) {
-      fprintf(stderr, "-:- ERROR: COULDN'T MALLOC MEMORY TO INITIALIZE SMRTPTR.H'S GARBAGE COLLECTOR -:-\n\n");
+      fprintf(stderr, "\n-:- \033[1m\033[31mERROR\033[0m COULDN'T MALLOC MEMORY TO INITIALIZE SMRTPTR.H'S GARBAGE COLLECTOR -:-\n\n");
       exit(EXIT_FAILURE);
     }
     SMRTPTR_GC.max = 10, SMRTPTR_GC.len = 0;
