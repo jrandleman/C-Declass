@@ -134,6 +134,8 @@
  *     (4) "#define DECLASS_DTORRETURN"   => ALSO DTOR RETURNED OBJECTS     *
  *     (5) "#define DECLASS_NOISYSMRTPTR" => ALERT "SMRTPTR.H"'S ALLOC/FREE *
  *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
+ *     (7) "#define DECLASS_NCOMPILE"     => ONLY CONVERT DON'T GCC COMPILE *
+ *     (8) "#define DECLASS_NC99"         => GCC COMPILE W/O "-std=c99"     *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
@@ -190,7 +192,9 @@ bool *SMRT_PTRS     = &DEFNS.defaults[2];  // confirms default inclusion of smrt
 bool *IMMORTALITY   = &DEFNS.defaults[3];  // confirms default enabling of "immortal" keyword       (default true)
 bool *DTOR_RETURN   = &DEFNS.defaults[4];  // returned objects also dtor'd                          (default false)
 bool *NOISY_SMRTPTR = &DEFNS.defaults[5];  // confirms whether to alert all smrtptr.h alloc/freeing (default false)
-bool NO_SMRTASSERT = false;                // deactivates all "smrtassert()" statements             (default false)
+bool NO_SMRTASSERT       = false;          // deactivates all "smrtassert()" statements             (default false)
+bool NO_C99_COMPILE_FLAG = false;          // compiles declassified file w/o "-std=c99"             (default false)
+bool NO_COMPILE          = false;          // declass.c declassifies but DOESN'T compile given file (default false)
 
 /* NOTE: IT IS ASSUMED THAT USER-DEFINED ALLOCATION FCNS RETURN NULL OR END PROGRAM UPON ALLOC FAILURE */
 int TOTAL_ALLOC_FCNS = 4; // increases if user defines their own allocation fcns
@@ -208,10 +212,12 @@ char basic_c_types[TOTAL_TYPES][11] = {
 char brace_keywords[TOTAL_BRACE_KEYWORDS][8] = {"else if", "if", "else", "for", "while"};
 
 /* BRACE-ADDITION FUNCTION */
+bool at_smrtassert_or_compile_macro_flag(char *);
 void add_braces(char []);
 /* MESSAGE FUNCTIONS */
 void enable_smrtptr_alerts();
 void confirm_valid_file(char *);
+void confirm_command_processor_exists_for_autonomous_compilation();
 void declass_DECLASSIFIED_ascii_art();
 void declass_ERROR_ascii_art();
 void declass_missing_Cfile_alert();
@@ -264,7 +270,7 @@ bool store_object_info(char *, int, bool *);
 /* PARSE CLASS HELPER FUNCTIONS */
 bool is_struct_definition(char *);
 void get_class_name(char *, char *);
-void confirm_only_one_cdtor(char *, char *, char *);
+void confirm_only_one_cdtor(char *, char *, bool);
 void get_prepended_method_name(char *, char *, char *, bool *, bool *);
 int get_initialized_member_value(char *);
 void register_member_class_objects(char *);
@@ -281,7 +287,7 @@ bool valid_member(char *, char *, char, char, char [][75], int);
 /* PARSE CLASS */
 int parse_class(char *, char [], int *);
 
-// declassed program contact header && "immortal" keyword
+// declassed program contact header, "immortal" keyword, & deactivate smrtassert
 #define DC_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
 #define IMMORTAL_KEYWORD_DEF "#define immortal // immortal keyword active\n"
 #define NDEBUG_SMRTPTR_DEF "#define DECLASS_NDEBUG // smartptr.h \"smrtassert()\"statements disabled\n"
@@ -308,7 +314,7 @@ static void smrtptr_free_all() {\n\
 }\n\
 // throws invalid allocation errors\n\
 static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {\n\
-  fprintf(stderr, \"-:- ERROR: COULDN'T %s MEMORY FOR SMRTPTR.H'S %s -:-\\n\\n\", alloc_type, smrtptr_h_fcn);\n\
+  fprintf(stderr, \"\\n-:- \\033[1m\\033[31mERROR\\033[0m COULDN'T %s MEMORY FOR SMRTPTR.H'S %s -:-\\n\\n\", alloc_type, smrtptr_h_fcn);\n\
   fprintf(stderr, \"-:- FREEING ALLOCATED MEMORY THUS FAR AND TERMINATING PROGRAM -:-\\n\\n\");\n\
   exit(EXIT_FAILURE); // still frees any ptrs allocated thus far\n\
 }\n\
@@ -316,7 +322,7 @@ static void smrtptr_throw_bad_alloc(char *alloc_type, char *smrtptr_h_fcn) {\n\
 #ifndef DECLASS_NDEBUG\n\
 #define smrtassert(condition) ({\\\n\
   if(!(condition)) {\\\n\
-    fprintf(stderr, \"Smart Assertion failed: (%s), function %s, file %s, line %d.\\n\", #condition, __func__, __FILE__, __LINE__);\\\n\
+    fprintf(stderr, \"\\n\\033[1m\\033[31mERROR\\033[0m Smart Assertion failed: (%s), function %s, file %s, line %d.\\n\", #condition, __func__, __FILE__, __LINE__);\\\n\
     fprintf(stderr, \">> Freeing Allocated Smart Pointers & Terminating Program.\\n\\n\");\\\n\
     exit(EXIT_FAILURE);\\\n\
   }\\\n\
@@ -332,7 +338,7 @@ void smrtptr(void *ptr) {\n\
   if(SMRTPTR_GC.len == -1) {\n\
     SMRTPTR_GC.ptrs = malloc(sizeof(void *) * 10);\n\
     if(!SMRTPTR_GC.ptrs) {\n\
-      fprintf(stderr, \"-:- ERROR: COULDN'T MALLOC MEMORY TO INITIALIZE SMRTPTR.H'S GARBAGE COLLECTOR -:-\\n\\n\");\n\
+      fprintf(stderr, \"\\n-:- \\033[1m\\033[31mERROR\\033[0m COULDN'T MALLOC MEMORY TO INITIALIZE SMRTPTR.H'S GARBAGE COLLECTOR -:-\\n\\n\");\n\
       exit(EXIT_FAILURE);\n\
     }\n\
     SMRTPTR_GC.max = 10, SMRTPTR_GC.len = 0;\n\
@@ -417,24 +423,27 @@ int main(int argc, char *argv[]) {
 
   // old & new file buffers, as well as filename
   char file_contents[MAX_FILESIZE], NEW_FILE[MAX_FILESIZE];
-  char filename[100];
+  char filename[100], original_filename_executable[100];
   FLOOD_ZEROS(file_contents, MAX_FILESIZE); FLOOD_ZEROS(NEW_FILE, MAX_FILESIZE);
-  FLOOD_ZEROS(filename, 100);
+  FLOOD_ZEROS(filename, 100); FLOOD_ZEROS(original_filename_executable, 100);
   strcpy(filename, argv[argc-1]);
   confirm_valid_file(filename);
+  strcpy(original_filename_executable, filename);
+  NEW_EXTENSION(original_filename_executable, ""); // remove ".c" from executable file's name
 
   FSCRAPE(file_contents, filename);
   char filler_array_argument[MAX_WORDS_PER_METHOD][75];
   int i = 0, j = 0;
   bool in_a_string = false;
 
-  // remove commments from program: ensures
-  // braces applied properly & reduces size
+  // remove commments from program: ensures braces applied properly & reduces size
   whitespace_all_comments(file_contents);
   trim_sequential_spaces(file_contents);
 
   // wrap braces around single-line "braceless" if, else if, else, while, & for loops
   add_braces(file_contents);
+  // simulate as if "#define DECLASS_NCOMPILE" were found if command processor DNE
+  confirm_command_processor_exists_for_autonomous_compilation();
   // uncomment smrtptr.h's alerts if user included "#define DECLASS_NOISYSMRTPTR"
   if(*SMRT_PTRS && *NOISY_SMRTPTR) enable_smrtptr_alerts();
 
@@ -519,9 +528,19 @@ int main(int argc, char *argv[]) {
 
   // notify user declassification conversion completed
   declass_DECLASSIFIED_ascii_art();
-  printf("%s ==DECLASSIFIED=> ", filename);
+  printf("%s \033[1m==DECLASSIFIED=>\033[0m ", filename);
   NEW_EXTENSION(filename, "_DECLASS.c");
+  char compile_cmd[250];
+  FLOOD_ZEROS(compile_cmd, 250);
+
+  if(!NO_COMPILE && NO_C99_COMPILE_FLAG)
+    sprintf(compile_cmd, "gcc -o %s %s", original_filename_executable, filename);
+  else if(!NO_COMPILE)
+    sprintf(compile_cmd, "gcc -std=c99 -o %s %s", original_filename_executable, filename);
+
   printf("%s", filename);
+  if(!NO_COMPILE)
+    printf("\n%s \033[1m=GCC=COMPILES=TO=>\033[0m %s", filename, original_filename_executable);
   printf("\n=================================================================================\n");
   trim_sequential_spaces(NEW_FILE);
 
@@ -543,15 +562,31 @@ int main(int argc, char *argv[]) {
   // write newly converted/declassified file & notify success to user
   FPUT(HEADED_NEW_FILE,filename);
   if(show_class_info) show_l_flag_data();
+  if(!NO_COMPILE) { 
+    printf("\033[1mCOMPILING CONVERTED CODE:\033[0m\n  $ %s", compile_cmd);
+    printf("\n=================================================================================\n");
+    system(compile_cmd); // compile the declassified/converted code
+  }
   printf(" >> Terminating Declassifier.\n");
   printf("=============================\n\n");
-
   return 0;
 }
 
 /******************************************************************************
 * BRACE-ADDITION FUNCTION
 ******************************************************************************/
+
+// detect & register "smrtassert" & "no C99"/"no compile" macro flags
+bool at_smrtassert_or_compile_macro_flag(char *p) {
+  bool found_macro = false;
+  if(is_at_substring(p, "DECLASS_NDEBUG") && !VARCHAR(*(p+strlen("DECLASS_NDEBUG")))) 
+    NO_SMRTASSERT = true, found_macro = true;
+  else if(is_at_substring(p, "DECLASS_NC99") && !VARCHAR(*(p+strlen("DECLASS_NC99")))) 
+    NO_C99_COMPILE_FLAG = true, found_macro = true;
+  else if(is_at_substring(p, "DECLASS_NCOMPILE") && !VARCHAR(*(p+strlen("DECLASS_NCOMPILE")))) 
+    NO_COMPILE = true, found_macro = true;
+  return found_macro;
+}
 
 // add braces around any "braceless" single-line conditionals & while/for loops 
 // and detects any "#define"'d flags by the user to guide this interpreter's course
@@ -580,10 +615,8 @@ void add_braces(char file_contents[]) {
             // skip over user-defined fcns & don't copy to new file (don't want to #define fcn names redefined later)
             while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\')) ++l;
           } 
-          if(is_at_substring(&file_contents[l], "DECLASS_NDEBUG") && !VARCHAR(file_contents[l+strlen("DECLASS_NDEBUG")])) {
-            NO_SMRTASSERT = true;
+          if(at_smrtassert_or_compile_macro_flag(&file_contents[l]))
             while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\')) ++l;
-          }
           for(; flag < TOTAL_FLAGS; ++flag)
             if(is_at_substring(&file_contents[l], DEFNS.flags[flag]) 
               && !VARCHAR(file_contents[l+strlen(DEFNS.flags[flag])])) {               
@@ -668,37 +701,47 @@ void confirm_valid_file(char *filename) {
   struct stat buf;
   if(stat(filename, &buf)) {
     declass_ERROR_ascii_art();
-    fprintf(stderr, "-:- FILE \"%s\" DOES NOT EXIST! -:-\n", filename);
-    fprintf(stderr, ">> Terminating Declassifier.\n\n");
+    fprintf(stderr, " >> FILE \"%s\" DOES NOT EXIST!\n", filename);
+    fprintf(stderr, " >> Terminating Declassifier.\n\n");
     exit(EXIT_FAILURE);
   }
   if(buf.st_size > MAX_FILESIZE || buf.st_size == 0) {
     declass_ERROR_ascii_art();
     if(buf.st_size > MAX_FILESIZE) {
-      fprintf(stderr, "-:- FILE \"%s\" SIZE %lld BYTES EXCEEDS %d BYTE CAP! -:- \n",filename,buf.st_size,MAX_FILESIZE); 
-      fprintf(stderr, "-:- RAISE 'MAX_FILESIZE' MACRO LIMIT! -:- \n");
-    } else fprintf(stderr, "-:- CAN'T DECLASSIFY AN EMPTY FILE! -:- \n"); 
-    fprintf(stderr, ">> Terminating Declassifier.\n\n");
+      fprintf(stderr, " >> FILE \"%s\" SIZE %lld BYTES EXCEEDS %d BYTE CAP!\n",filename,buf.st_size,MAX_FILESIZE); 
+      fprintf(stderr, " >> RAISE 'MAX_FILESIZE' MACRO LIMIT!\n");
+    } else fprintf(stderr, " >> CAN'T DECLASSIFY AN EMPTY FILE!\n"); 
+    fprintf(stderr, " >> Terminating Declassifier.\n\n");
     exit(EXIT_FAILURE);
+  }
+}
+
+// confirms command processor exists to compile declassified code autonomously via "system()":
+// if DNE declass.c only converts the file w/o compiling, as if "#define DECLASS_NCOMPILE" were found
+void confirm_command_processor_exists_for_autonomous_compilation() {
+  if(!NO_COMPILE && !system(NULL)) { // no need to show if client already disabled auto-compilation
+    fprintf(stderr, "%s\n", "declass.c: \033[1m\033[33mWARNING\033[0m, Command Processor Does Not Exist!\n");
+    fprintf(stderr, "%s\n", " >> Declassifying File Without Compiling.\n >> Client Must Manually Compile Converted Code.\n");
+    NO_COMPILE = true;
   }
 }
 
 // 'declassified' in ascii
 void declass_DECLASSIFIED_ascii_art() {
-  printf("\n=================================================================================\n");
+  printf("\n=================================================================================\n\033[1m");
   printf("||^\\\\  /|===\\ //==\\ ||     //^\\\\    //==/ //==/ ==== |===\\ ==== /|===\\ ||^\\\\   //\n");
   printf("||  )) ||==   ||    ||    |/===\\|   \\\\    \\\\     ||  |==    ||  ||==   ||  )) //\n");
   printf("||_//  \\|===/ \\\\==/ |===/ ||   || /==// /==//   ==== ||    ==== \\|===/ ||_// <*>");
-  printf("\n=================================================================================\n");
+  printf("\033[0m\n=================================================================================\n");
 }
 
 // 'error' in ascii
 void declass_ERROR_ascii_art() {
-  printf("\n========================================\n");
+  printf("\n========================================\n\033[1m\033[31m");
   printf("  /|===\\ ||^\\\\ ||^\\\\ //==\\\\ ||^\\\\   //\n");
   printf("  ||==   ||_// ||_// ||  || ||_//  //\n");
   printf("  \\|===/ || \\\\ || \\\\ \\\\==// || \\\\ <*>");
-  printf("\n========================================\n");
+  printf("\033[0m\n========================================\n");
 }
 
 // error & how-to-execute message
@@ -713,32 +756,31 @@ void declass_missing_Cfile_alert() {
   printf("\n********* Filename Conversion: *********\n"); 
   printf("yourCFile.c ==> yourCFile_DECLASSIFIED.c");
   printf("\n========================================\n");
-  printf(">> Terminating Declassifier.");
-  printf("\n============================\n\n");
+  printf(" >> Terminating Declassifier.");
+  printf("\n=============================\n\n");
   exit(EXIT_FAILURE);
 }
 
 // thrown if "#define DECLASS_IGNORE" was detected, terminates program
 void throw_DECLASS_IGNORE_message_and_terminate() {
-  declass_ERROR_ascii_art();
-  fprintf(stderr, "-:- \"#define DECLASS_IGNORE\" Was Detected! -:-\n>> Terminating Declassifier.\n\n");
+  fprintf(stderr, "\n >> declass.c: \033[1m\033[33mWARNING\033[0m \"#define DECLASS_IGNORE\" Was Detected!\n >> Terminating Declassifier.\n\n");
   exit(EXIT_FAILURE);
 }
 
 // output class data if argv[1] == '-l' flag
 void show_l_flag_data() {
-  if(total_classes > 0) printf("\n--=[ TOTAL CLASSES: %d ]=--", total_classes);
-  (total_objects > 0) ? printf("=[ TOTAL OBJECTS: %d ]=--\n", total_objects) : printf("\n");
+  if(total_classes > 0) printf("\n\033[1m--=[ TOTAL CLASSES: %d ]=--", total_classes);
+  (total_objects > 0) ? printf("=[ TOTAL OBJECTS: %d ]=--\033[0m\n", total_objects) : printf("\033[0m\n");
   for(int i = 0; i < total_classes; ++i) {
     int class_objects_sum = 0;
     for(int j = 0; j < total_objects; ++j) 
       if(strcmp(classes[i].class_name, objects[j].class_name) == 0) class_objects_sum++;
-    printf("\nCLASS No%d, %s:\n", i + 1, classes[i].class_name);
+    printf("\n\033[1mCLASS No%d, %s:\033[0m\n", i + 1, classes[i].class_name);
 
     int total_members = classes[i].total_members; // differentiate between class struct member members & class members
     for(int j = 0; j < classes[i].total_members; ++j) if(classes[i].member_names[j][0] == 0) --total_members;
     if(total_members > 0) {
-      printf(" L_ MEMBERS: %d\n", total_members);
+      printf(" L_ \033[1mMEMBERS: %d\033[0m\n", total_members);
       for(int j = 0; j < classes[i].total_members; ++j) {
         if(classes[i].member_names[j][0] == 0) continue;
         char bar = (classes[i].total_methods > 0) ? '|' : ' ';
@@ -753,7 +795,7 @@ void show_l_flag_data() {
 
     char method_name[150];
     if(classes[i].total_methods > 0) {
-        printf(" L_ METHODS: %d\n", classes[i].total_methods);
+        printf(" L_ \033[1mMETHODS: %d\033[0m\n", classes[i].total_methods);
       for(int j = 0; j < classes[i].total_methods; ++j) {
         FLOOD_ZEROS(method_name, 150);
         if(strcmp(classes[i].method_names[j], "DC__constructor") == 0)
@@ -766,7 +808,7 @@ void show_l_flag_data() {
     }
 
     if(class_objects_sum > 0) {
-      printf(" L_ OBJECTS: %d\n", class_objects_sum);
+      printf(" L_ \033[1mOBJECTS: %d\033[0m\n", class_objects_sum);
       for(int j = 0; j < total_objects; ++j) 
         if(strcmp(classes[i].class_name, objects[j].class_name) == 0) {
           if(objects[j].is_class_pointer)    printf("   L_ *%s", objects[j].object_name);
@@ -777,7 +819,7 @@ void show_l_flag_data() {
         }
     }
   }
-  printf("\n=============================\n");
+  printf("\n=================================================================================\n");
 }
 
 // triggered when a potential dummy ctor was found as an arg in a method
@@ -785,19 +827,19 @@ void show_l_flag_data() {
 // or terminates declass.c's conversion as per user's input
 void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char fcn[12],int line,int class_idx) {
   fprintf(stderr, 
-    "-:- WARNING: UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d -:-\n", fcn, line);
+    "\033[1m\033[33mWARNING\033[0m UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d\n", fcn, line);
   fprintf(stderr, 
-    "-:- DETECTED \"%s(\" POTENTIAL \"DUMMY\" CTOR INVOCATION IN ARGS OF METHOD: \"%s\" IN CLASS: \"%s\" -:-\n", 
+    " >> DETECTED \"%s(\" POTENTIAL \"DUMMY\" CTOR INVOCATION IN ARGS OF METHOD: \"%s\" IN CLASS: \"%s\"\n", 
     classes[class_idx].class_name, classes[total_classes].method_names[classes[total_classes].total_methods-1], 
     classes[class_idx].class_name);
-  fprintf(stderr, "-:- DUMMY CTORS CAN RETURN OBJECTS, BUT NEVER REPRESENT THEM AS A VARIABLE! -:-\n");
-  printf("-:- CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO -:-\n\n>>> ");
+  fprintf(stderr, " >> DUMMY CTORS CAN RETURN OBJECTS, BUT NEVER REPRESENT THEM AS A VARIABLE!\n");
+  printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
   int continueDeclassification;
   scanf("%d", &continueDeclassification);
   if(continueDeclassification == 1)
-    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
   else {
-    printf("\n\n>> Terminating Program.\n\n");
+    printf("\n\n >> Terminating Program.\n\n");
     exit(EXIT_SUCCESS); // having been intentionally terminated
   }
 }
@@ -807,18 +849,18 @@ void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char fcn[12],int line,in
 // (such being only instance where a valid double assignment could occur, and even then it's 
 // generated by declass.c not the user)
 void throw_potential_invalid_double_dflt_assignment(char *class_name) {
-  fprintf(stderr, "-:- WARNING: UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d -:-\n", __func__, __LINE__);
+  fprintf(stderr, "\033[1m\033[33mWARNING\033[0m UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d\n", __func__, __LINE__);
   fprintf(stderr, 
-    "-:- DETECTED POTENTIAL DOUBLE DEFAULT-VALUE ASSINGMENT IN CLASS \"%s\" MEMBER DECLARATIONS -:-\n", class_name);
-  fprintf(stderr, "-:- NORMALLY OCCURS WHEN ALLOCATING & CONSTRUCTING A POINTER MEMBER AT ONCE -:-\n");
-  fprintf(stderr, "-:- IE: \"ClassName *objectName(args) = smrtmalloc(sizeof(className));\" -:-\n");
-  printf("-:- CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO -:-\n\n>>> ");
+    " >> DETECTED POTENTIAL DOUBLE DEFAULT-VALUE ASSINGMENT IN CLASS \"%s\" MEMBER DECLARATIONS\n", class_name);
+  fprintf(stderr, " >> NORMALLY OCCURS WHEN ALLOCATING & CONSTRUCTING A POINTER MEMBER AT ONCE\n");
+  fprintf(stderr, " >> IE: \"ClassName *objectName(args) = smrtmalloc(sizeof(className));\"\n");
+  printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
   int continueDeclassification;
   scanf("%d", &continueDeclassification);
   if(continueDeclassification == 1) 
-    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
   else {
-    printf("\n\n>> Terminating Program.\n\n");
+    printf("\n\n >> Terminating Program.\n\n");
     exit(EXIT_SUCCESS); // having been intentionally terminated
   }
 }
@@ -1200,15 +1242,15 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct
     for(; is_a_defined_class < total_classes + 1; ++is_a_defined_class)
       if(strcmp(ctored_class, classes[is_a_defined_class].class_name) == 0) break;
     if(is_a_defined_class == total_classes + 1) {
-      fprintf(stderr, "-:- WARNING: UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d -:-\n", __func__, __LINE__);
-      fprintf(stderr, "-:- EXPECTED OBJECT CTOR FOR MEMBER: \"%s\" IN CLASS: \"%s\" -:-\n", ctored_obj, ctored_class);
-      printf("-:- CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO -:-\n\n>>> ");
+      fprintf(stderr, "declass.c: \033[1m\033[33mWARNING\033[0m UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d\n", __func__, __LINE__);
+      fprintf(stderr, " >> EXPECTED OBJECT CTOR FOR MEMBER: \"%s\" IN CLASS: \"%s\"\n", ctored_obj, ctored_class);
+      printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
       int continueDeclassification;
       scanf("%d", &continueDeclassification);
       if(continueDeclassification == 1)
-        printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - I HOPE YOU KNOW WHAT YOU'RE DOING -:-\n\n");
+        printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
       else {
-        printf("\n\n>> Terminating Program.\n\n");
+        printf("\n\n >> Terminating Program.\n\n");
         exit(EXIT_SUCCESS); // having been intentionally terminated
       }
       return end;
@@ -1899,13 +1941,12 @@ void get_class_name(char *s, char *class_name) {
 }
 
 // checks whether or not class already has a user-defined ctor/dtor, & throws error if so
-void confirm_only_one_cdtor(char *class_name, char*structor_name, char*structor_type) {
-  for(int i = 0; i < classes[total_classes].total_members; ++i)
-    if(strcmp(classes[total_classes].member_names[i], structor_name) == 0) {
-      fprintf(stderr, "\n-:- ERROR: MORE THAN 1 %s FOR CLASSNAME \"%s\" FOUND! -:-", structor_type, class_name);
-      fprintf(stderr, "\n-:- NO FUNCTION OVERLOADING, TERMINATING DECLASS.C PROGRAM -:-\n\n");
-      exit(EXIT_FAILURE);
-    }
+void confirm_only_one_cdtor(char *class_name, char*structor_type, bool possible_dtor) {
+  if((possible_dtor && classes[total_classes].class_has_dtor) || (!possible_dtor && classes[total_classes].class_has_ctor)) {
+    fprintf(stderr, "\n >> declass.c: \033[1m\033[31mERROR\033[0m MORE THAN 1 %s FOR CLASSNAME \"%s\" FOUND!", structor_type, class_name);
+    fprintf(stderr, "\n >> NO FUNCTION OVERLOADING, TERMINATING DECLASS.C PROGRAM\n\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 // parse & prepend function name w/ class (now struct) name, & determine 
@@ -1922,7 +1963,8 @@ void get_prepended_method_name(char*s,char*class_name,char*prepended_method_name
 
   // check for whether method is user-defined class dtor or ctor (typeless fcn 
   // w/ same name as class, prefixed w/ '~' if its a destructor (dtor))
-  if(*(p-1) == '~') { // possible destructor
+  bool possible_dtor = (*(p-1) == '~');
+  if(possible_dtor) {
     strcpy(structor_name, "DC__destructor");
     strcpy(structor_type, "DESTRUCTOR");
     sprintf(structor_invoker, "DC__NOT_%s_", class_name);
@@ -1937,10 +1979,10 @@ void get_prepended_method_name(char*s,char*class_name,char*prepended_method_name
   while(*q != ' ' && *q != '(') *cdtor++ = *q++;         // "type" if *q == ' ' && "class_name" if == '('
   *cdtor = '\0';
   if(*q == '(' && strcmp(cdtor_name, class_name) == 0) { // no type & fcn name == class_name: method = ctor/dtor
-    confirm_only_one_cdtor(class_name, structor_name, structor_type);
+    confirm_only_one_cdtor(class_name, structor_type, possible_dtor);
     strcpy(prepended_method_name, structor_invoker);
     strcpy(classes[total_classes].method_names[classes[total_classes].total_methods], structor_name);
-    if(*(p-1) == '~')
+    if(possible_dtor)
       *method_is_dtor = classes[total_classes].class_has_dtor = true;
     else {
       *method_is_ctor = classes[total_classes].class_has_ctor = true;
