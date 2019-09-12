@@ -11,8 +11,8 @@
 // #define DECLASS_DTORRETURN   // enables dtors for objects being returned
 // #define DECLASS_NOISYSMRTPTR // printf's alerts for every smrtptr.h's alloc/free (superseded by "DECLASS_NSMRTPTR")
 // #define DECLASS_NDEBUG       // disables all smrtptr.h's "smrtassert()" statements
-// #define DECLASS_NCOMPILE     // declass.c declassifies but DOESN'T compile given file
-// #define DECLASS_NC99         // compiles declassified file w/o "-std=c99"
+// #define DECLASS_NCOMPILE     // declass.c declassifies but DOESN'T GCC compile converted file
+// #define DECLASS_NC99         // GCC compiles declassified file w/o "-std=c99"
 
 // users can list custom object memory allocation fcns to be recognized 
 // by declass.c in implementing constructors correctly for object ptrs
