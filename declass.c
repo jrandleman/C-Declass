@@ -235,6 +235,7 @@ int remove_blank_lines(char *);
 /* STRING HELPER FUNCTIONS */
 bool no_overlap(char, char *);
 bool is_at_substring(char *, char *);
+void account_for_string_char_scopes(bool*, bool*, bool*, char*);
 /* OBJECT CONSTRUCTION FUNCTIONS */
 bool is_a_dummy_ctor(char *);
 void mk_initialization_brace(char [], int);
@@ -434,7 +435,7 @@ int main(int argc, char *argv[]) {
   FSCRAPE(file_contents, filename);
   char filler_array_argument[MAX_WORDS_PER_METHOD][75];
   int i = 0, j = 0;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
 
   // remove commments from program: ensures braces applied properly & reduces size
   whitespace_all_comments(file_contents);
@@ -449,15 +450,15 @@ int main(int argc, char *argv[]) {
 
   while(file_contents[i] != '\0') {
     // don't modify anything in strings
-    if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, &file_contents[i]);
 
     // store class info & convert to structs calling external fcns
-    if(!in_a_string && is_at_substring(&file_contents[i], "class ") && (!VARCHAR(file_contents[i-1]))) 
+    if(in_token_scope && is_at_substring(&file_contents[i], "class ") && (!VARCHAR(file_contents[i-1]))) 
       i += parse_class(&file_contents[i], NEW_FILE, &j);
 
     // store declared class object info
     bool dummy_ctor = false;
-    for(int k = 0; !in_a_string && k < total_classes; ++k)
+    for(int k = 0; in_token_scope && k < total_classes; ++k)
       if(is_at_substring(&file_contents[i], classes[k].class_name) 
         && !VARCHAR(file_contents[i+strlen(classes[k].class_name)]) && !VARCHAR(file_contents[i-1]))
         if(store_object_info(&file_contents[i], 0, &dummy_ctor)) { // assign default values
@@ -518,7 +519,7 @@ int main(int argc, char *argv[]) {
         }
 
     // modify object invoking method to fcn call w/ a prepended class-converted-struct name
-    if(!in_a_string && total_classes > 0) 
+    if(in_token_scope && total_classes > 0) 
       i += parse_method_invocation(&file_contents[i], NEW_FILE, &j, false, filler_array_argument);
 
     // save non-class data to file
@@ -595,12 +596,12 @@ void add_braces(char file_contents[]) {
   int k, i = 0, j = 0, in_brace_args = 0;
   FLOOD_ZEROS(BRACED_FILE, MAX_FILESIZE);
   BRACED_FILE[j++] = file_contents[i++]; // so "file_contents[i-1]" won't throw error
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
 
   while(file_contents[i] != '\0') {
-    if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, &file_contents[i]);
     // check whether user defined any of the flags in the "DEFN" struct, (STRICT_MODE supersedes all)
-    if(!in_a_string && file_contents[i] == '\n' && !(*STRICT_MODE) && !(*NO_DECLASS)) {
+    if(in_token_scope && file_contents[i] == '\n' && !(*STRICT_MODE) && !(*NO_DECLASS)) {
       int l = i;
       while(IS_WHITESPACE(file_contents[l])) ++l;
       if(file_contents[l] == '#') {
@@ -638,7 +639,7 @@ void add_braces(char file_contents[]) {
     }
 
     // check for else if, if, else, while, & for
-    for(k = 0; !in_a_string && k < TOTAL_BRACE_KEYWORDS; ++k)
+    for(k = 0; in_token_scope && k < TOTAL_BRACE_KEYWORDS; ++k)
       if(is_at_substring(&file_contents[i],brace_keywords[k]) && !VARCHAR(file_contents[i-1]) && file_contents[i-1] != '#' 
         && !VARCHAR(file_contents[i+strlen(brace_keywords[k])])) {                    // at a "brace keyword"
         for(int l = 0, len = strlen(brace_keywords[k]); l < len; ++l)                 // skip brace keyword
@@ -650,21 +651,21 @@ void add_braces(char file_contents[]) {
             BRACED_FILE[j++] = file_contents[i++];                                    // move past '('
             in_brace_args = 1;
             while(file_contents[i] != '\0' && in_brace_args > 0) {                    // copy brace keywords args
-              if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+              account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, &file_contents[i]);
               if(file_contents[i] == '(')      ++in_brace_args;
               else if(file_contents[i] == ')') --in_brace_args;
               BRACED_FILE[j++] = file_contents[i++]; 
             }
           }
           while(file_contents[i] != '\0' && IS_WHITESPACE(file_contents[i])) { // skip to 1st st8ment after brace keyword
-            if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+            account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, &file_contents[i]);
             BRACED_FILE[j++] = file_contents[i++]; 
           }
           if(file_contents[i] == ';' || file_contents[i] == '{'                // braced keyword or do-while loop
           ||(file_contents[i]=='d'&&file_contents[i+1]=='o'&&!VARCHAR(file_contents[i+2]))) break;
           BRACED_FILE[j++] = '{';                                              // add brace
           while(file_contents[i] != '\0' && file_contents[i-1] != ';') {       // copy single-line conditional
-            if(file_contents[i] == '"' && file_contents[i-1] != '\\') in_a_string = !in_a_string;
+            account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, &file_contents[i]);
             BRACED_FILE[j++] = file_contents[i++]; 
           }
           BRACED_FILE[j++] = '}';                                              // add brace
@@ -754,7 +755,7 @@ void declass_missing_Cfile_alert() {
   printf("Execution:  $ ./declass -l yourCFile.c");
   printf("\n========================================");
   printf("\n********* Filename Conversion: *********\n"); 
-  printf("yourCFile.c ==> yourCFile_DECLASSIFIED.c");
+  printf("   yourCFile.c => yourCFile_DECLASS.c   ");
   printf("\n========================================\n");
   printf(" >> Terminating Declassifier.");
   printf("\n=============================\n\n");
@@ -903,16 +904,16 @@ void register_user_defined_alloc_fcns(char *s) {
 // replaces all comments inside of a class instance with spaces
 void whitespace_all_comments(char *end) { // end = 1 past 1st '{'
   int in_class_scope = 1;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   while(*end != '\0' && in_class_scope > 0) {
     // confirm in class' scope
     if(*end == '{') in_class_scope++;
     else if(*end == '}') in_class_scope--;
-    else if(*end == '"' && *(end-1) != '\\') in_a_string = !in_a_string;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, end);
     if(in_class_scope < 0) break;
-    if(!in_a_string && *end == '/' && *(end + 1) == '/') {
+    if(in_token_scope && *end == '/' && *(end + 1) == '/') {
       while(*end != '\0' && *end != '\n') *end++ = ' ';
-    } else if(!in_a_string && *end == '/' && *(end + 1) == '*') {
+    } else if(in_token_scope && *end == '/' && *(end + 1) == '*') {
       *end++ = ' ', *end++ = ' ';
       while(*end != '\0' && (*end != '*' || *(end + 1) != '/')) *end++ = ' ';
       *end++ = ' ', *end++ = ' ';
@@ -926,17 +927,17 @@ void whitespace_all_comments(char *end) { // end = 1 past 1st '{'
 void trim_sequential_spaces(char OLD_BUFFER[]) {
   char *read = OLD_BUFFER, NEW_BUFFER[MAX_FILESIZE], *scout, *write;
   FLOOD_ZEROS(NEW_BUFFER, MAX_FILESIZE);
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   write = NEW_BUFFER;
   *write++ = *read++;                                   // so first string check doesn't check garbage memory
   while(*read != '\0') {
-    if(*read == '"' && *(read-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && *read == ' ') {                  // trims space(s) + ('\n' || ';' || '=') sequence
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, read);
+    if(in_token_scope && *read == ' ') {                  // trims space(s) + ('\n' || ';' || '=') sequence
       scout = read;
       while(*scout != '\0' && *scout == ' ') ++scout;   // skip over spaces
       if(!no_overlap(*scout, "\n;")) read = scout;      // if correct format, passover spaces
       else if(*scout == '=') read = scout - 1;
-    } else if(!in_a_string && is_at_substring(read, "\n\n\n\n")) { // trim any '\n' sequences length > 3 down to 3
+    } else if(in_token_scope && is_at_substring(read, "\n\n\n\n")) { // trim any '\n' sequences length > 3 down to 3
       for(int i = 0; i < 3; ++i) *write++ = *read++;
       scout = read;
       while(*scout != '\0' && *scout == '\n') ++scout;
@@ -976,8 +977,15 @@ bool no_overlap(char c, char *bad_chars) {
 
 // returns if 'p' points to the particular substring 'substr'
 bool is_at_substring(char *p, char *substr) {
-  for(int i = 0, len = strlen(substr); i < len; ++i) if(p[i] != substr[i]) return false;
-  return true;
+  while(*substr != '\0' && *p != '\0' && *p == *substr) ++p, ++substr;
+  return (*substr == '\0');
+}
+
+// checks if p is in a string or char, assigning the respective "bool" ptrs accordingly
+void account_for_string_char_scopes(bool *in_a_string, bool *in_a_char, bool *in_token_scope, char *p) {
+  if(!(*in_a_char)   && *p == '"'  && (*(p-1) != '\\' || *(p-2) == '\\')) *in_a_string = !(*in_a_string);
+  if(!(*in_a_string) && *p == '\'' && (*(p-1) != '\\' || *(p-2) == '\\')) *in_a_char   = !(*in_a_char);
+  *in_token_scope = (!(*in_a_string) && !(*in_a_char));
 }
 
 /******************************************************************************
@@ -1091,15 +1099,15 @@ void mk_class_global_initializer(char *class_global_initializer, char *class_nam
 // prefixes any user invocations of a "dummy" class constructor w/ "DC__DUMMY_"
 int prefix_dummy_ctor_with_DC__DUMMY_(char *write, char *read) {
   int dummy_ctor_len = 0, in_dummy_args_scope = 1;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   sprintf(write, "DC__DUMMY_");
   write += strlen(write);
   while(*read != '(') *write++ = *read++, ++dummy_ctor_len;
   *write++ = *read++, ++dummy_ctor_len; // copy '('
   while(*read != '\0' && in_dummy_args_scope > 0) { // copy dummy ctor args
-    if(*read == '"' && *(read-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && *read == '(')      ++in_dummy_args_scope; 
-    else if(!in_a_string && *read == ')') --in_dummy_args_scope;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, read);
+    if(in_token_scope && *read == '(')      ++in_dummy_args_scope; 
+    else if(in_token_scope && *read == ')') --in_dummy_args_scope;
     *write++ = *read++, ++dummy_ctor_len;
   }
   return dummy_ctor_len;
@@ -1117,15 +1125,15 @@ bool get_user_ctor(char *p, char *user_ctor, char *class_name, bool *is_fcn_retu
   if(*p != '(') return false; // object not being constructed via user-defined ctor
   char ctor_vals[MAX_DEFAULT_VALUE_LENGTH]; FLOOD_ZEROS(ctor_vals, MAX_DEFAULT_VALUE_LENGTH);
   int val_idx = 0, in_ctor_args = 1;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
 
   // copy inner ctor args to "ctor_vals" & white-out "p" buffer's "(<args>)" w/ spaces
   char *whiteout_start = p;
   ++p;                                                          // move past first '('
   while(*p != '\0' && in_ctor_args > 0) {
-    if(*p == '"' && *(p-1) != '\\') in_a_string = !in_a_string; // account for whether in string
-    if(!in_a_string && *p == '(')      ++in_ctor_args;          // confirm still in ctor arg scope
-    else if(!in_a_string && *p == ')') --in_ctor_args;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, p);
+    if(in_token_scope && *p == '(')      ++in_ctor_args;          // confirm still in ctor arg scope
+    else if(in_token_scope && *p == ')') --in_ctor_args;
     if(in_ctor_args == 0) break;                                // if out of scope
     ctor_vals[val_idx++] = *p++;                                // copy ctor args
   }
@@ -1163,13 +1171,13 @@ bool get_user_ctor(char *p, char *user_ctor, char *class_name, bool *is_fcn_retu
 // USED FOR DECLARATIONS IN CLASS PROTOTYPES
 char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct_inc,bool*found_ctor){
   char *is_ctor = end;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   *found_ctor = false;
   *struct_inc = 0;
   // from initial '(', traverse the rest of the line & confirm ends w/ ';' not '{'
   while(*is_ctor != '\0' && *is_ctor != '\n') { 
-    if(*is_ctor == '"' && *(is_ctor-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && (*is_ctor == ';' || *is_ctor == '{')) break; // either ctor or method
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, is_ctor);
+    if(in_token_scope && (*is_ctor == ';' || *is_ctor == '{')) break; // either ctor or method
     ++is_ctor;
   }
   
@@ -1318,12 +1326,12 @@ int shiftSplice_dtor_in_buffer(char *dtor, char *splice_here) {
   // to splice in one at the end of the scope)
   int current_scope = 1;
   char *check_ifdef_already = splice_here;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   while(current_scope > 0) {
-    if(*check_ifdef_already == '"' && *(check_ifdef_already-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string) {
-      if(*check_ifdef_already == '{' && *(check_ifdef_already-1) != '\'')      --current_scope;
-      else if(*check_ifdef_already == '}' && *(check_ifdef_already-1) != '\'') ++current_scope;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, check_ifdef_already);
+    if(in_token_scope) {
+      if(*check_ifdef_already == '{')      --current_scope;
+      else if(*check_ifdef_already == '}') ++current_scope;
       if(current_scope <= 0) break;
       // check if dtor already defined in scope & not prior to a return 
       // (return shouldn't play a factor if returning from the same scope but just in case)
@@ -1394,15 +1402,15 @@ int one_line_conditional(char *cond) {
   FLOOD_ZEROS(condition, 200); FLOOD_ZEROS(return_if, 200); FLOOD_ZEROS(return_else, 200);
   FLOOD_ZEROS(else_dtor, 200); FLOOD_ZEROS(if_dtor, 200);
   char *write = condition;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   // copy condition, the "if" return, & the "else" return
   while(*cond != '\0') {
-    if(*cond == '"' && *(cond-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && *cond == ';') {
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, cond);
+    if(in_token_scope && *cond == ';') {
       *write = '\0';  break; // end of return's line
-    } else if(!in_a_string && *cond == '?') { // start copying first return value
+    } else if(in_token_scope && *cond == '?') { // start copying first return value
       *write = '\0'; write = return_if;
-    } else if(!in_a_string && *cond == ':') {
+    } else if(in_token_scope && *cond == ':') {
       *write = '\0'; write = return_else;
     }
     *write++ = *cond++;
@@ -1456,7 +1464,7 @@ int return_then_immediate_exit(char *immediate_exit) {
 // splices object dtor (once object created) into buffer being READ from (picked up later on)
 void add_object_dtor(char *splice_here) {
   if(!objects[total_objects-1].class_has_dtor || objects[total_objects-1].is_immortal) return;
-  bool in_a_string = false;
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
   int in_scope = 0;
   char dtor[1000];
   FLOOD_ZEROS(dtor, 1000);
@@ -1465,8 +1473,8 @@ void add_object_dtor(char *splice_here) {
   char dtor_flag[300];
   FLOOD_ZEROS(dtor_flag, 300);
   while(*splice_here != '\0') { // skip past object declaration
-    if(*splice_here == '"' && *(splice_here-1) != '\\') in_a_string = !in_a_string;
-    if(!in_a_string && *(splice_here-1) == ';') break;
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, splice_here);
+    if(in_token_scope && *(splice_here-1) == ';') break;
     ++splice_here;
   }
   // splice in flag for whether object has been destroyed or not
@@ -1486,9 +1494,9 @@ void add_object_dtor(char *splice_here) {
 
   // find where current scope ends
   while(*splice_here != '\0' && in_scope >= 0) {
-    if(*splice_here == '"' && *(splice_here-1) != '\\') in_a_string = !in_a_string; // register whether in a string
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, splice_here);
     // check whether entering/exiting a scope
-    if(!in_a_string) {
+    if(in_token_scope) {
       if(*splice_here == '{') ++in_scope;
       else if(*splice_here == '}') {
         --in_scope;
@@ -2356,7 +2364,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   // class scope btwn 'start' & 'end'
   char *start = class_instance, *end, *start_of_line;
   int in_class_scope = 1, in_method_scope;
-  bool in_a_string;
+  bool in_a_string, in_a_char, in_token_scope;
   while(*start++ != '{') class_size++;
   end = start;
 
@@ -2473,7 +2481,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
       // confirm whether still w/in method scope or w/in a string
       in_method_scope = 1;
-      in_a_string = false;
+      in_a_string = false, in_a_char = false, in_token_scope = true;
       
       // get className-prepended method name
       char prepended_method_name[150];
@@ -2549,12 +2557,12 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
         // account for current scope & cpy method
         if(*end == '{') in_method_scope++, in_class_scope++;
         else if(*end == '}') in_method_scope--, in_class_scope--;
-        else if(*end == '"' && *(end-1) != '\\') in_a_string = !in_a_string; // don't prefix '->' to member names in strs
+        account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, end);
         if(in_method_scope < 0 || in_class_scope < 0) break;
 
         // check for class object declaration
         bool dummy_ctor = false;
-        for(int k = 0; !in_a_string && k < total_classes + 1; ++k)
+        for(int k = 0; in_token_scope && k < total_classes + 1; ++k)
           if(is_at_substring(end, classes[k].class_name) 
             && !VARCHAR(*(end-1)) && !VARCHAR(*(end+strlen(classes[k].class_name)))) {
             if(store_object_info(end, 1, &dummy_ctor)) {
@@ -2615,9 +2623,9 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
           }
 
         // either add method word to 'method_words[][]' or prepend 'this->' to member
-        if(!in_a_string) {
-          if(!VARCHAR(*(end-1)) && *(end-1) != '\'' && VARCHAR(*end)) word_start = end; // beginning of word
-          if(VARCHAR(*end) && !VARCHAR(*(end + 1))) {                                // end of word - member or var
+        if(in_token_scope) {
+          if(!VARCHAR(*(end-1)) && (*(end-1) != '\'' || (*(end-2) == '\\' && *(end-3) != '\\')) && VARCHAR(*end)) word_start = end; // beginning of word
+          if(VARCHAR(*end) && !VARCHAR(*(end + 1))) { // end of word - member or var
             // check if a member of the current/local class
             int i = 0;
             for(; i < classes[total_classes].total_members; ++i) {
@@ -2640,7 +2648,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
         // prepend methods invoked within methods with the appropriate 'className'_
         int method_buff_idx_position = strlen(method_buff) + 1;
-        int nested_method_size = (!in_a_string)
+        int nested_method_size = (in_token_scope)
           ? parse_method_invocation(end, method_buff_idx, &method_buff_idx_position, true, method_words)
           : 0;
         end += nested_method_size, class_size += nested_method_size;
@@ -2651,7 +2659,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
         } else {
 
           // check whether nested method, but for local class (ie NOT for another object)
-          int local_nested_method_size = (!in_a_string) 
+          int local_nested_method_size = (in_token_scope) 
             ? parse_local_nested_method(end, method_buff_idx, class_name, method_words) 
             : 0;
           if(local_nested_method_size > 0) {
