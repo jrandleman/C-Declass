@@ -11,9 +11,9 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 ### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
-* _Converted programs are automatically compiled in_ `C99`_'s standard via_ `GCC` _as a binary file w/ the original name_
+* _Converted programs are automatically compiled in_ `C11`_'s standard via_ `GCC` _as a binary file w/ the original name_
   * `yourFile.c` _is converted to_ `yourFile_DECLASS.c` _is compiled to_ `yourFile`
-  * [Macro Flags 7-8](#declass-cs-pre-preprocessor-specialization-macro-flags) _can disable both the_ `C99` _standard as well as automatic compiling as a whole_
+  * [Macro Flags 7-8](#declass-cs-pre-preprocessor-specialization-macro-flags) _can disable both the_ `C11` _standard as well as automatic compiling as a whole_
 * _Provided_ "`declass_SampleExec.c`" _demos classes, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the_ [10 Caveats](#declass-cs-10-caveats-straight-from-declassc) _& use_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _as an operations reference!_
 --------------
@@ -138,7 +138,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
    #define DECLASS_NCOMPILE     // declass.c declassifies but DOESN'T GCC compile converted file
    ```
 8) ```c
-   #define DECLASS_NC99         // GCC compiles declassified file w/o "-std=c99"
+   #define DECLASS_NC11         // GCC compiles declassified file w/o "-std=c11"
    ```
 ### Defining Custom Memory Allocation Functions:
 * `declass.c` _relies on identifying memory allocation functions to not apply dflt vals to garbage memory_
