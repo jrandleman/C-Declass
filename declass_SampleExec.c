@@ -12,7 +12,7 @@
 // #define DECLASS_NOISYSMRTPTR // printf's alerts for every smrtptr.h's alloc/free (superseded by "DECLASS_NSMRTPTR")
 // #define DECLASS_NDEBUG       // disables all smrtptr.h's "smrtassert()" statements
 // #define DECLASS_NCOMPILE     // declass.c declassifies but DOESN'T GCC compile converted file
-// #define DECLASS_NC99         // GCC compiles declassified file w/o "-std=c99"
+// #define DECLASS_NC11         // GCC compiles declassified file w/o "-std=c11"
 
 // users can list custom object memory allocation fcns to be recognized 
 // by declass.c in implementing constructors correctly for object ptrs
@@ -117,7 +117,7 @@
  *     (5) "#define DECLASS_NOISYSMRTPTR" => ALERT "SMRTPTR.H"'S ALLOC/FREE *
  *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *     (7) "#define DECLASS_NCOMPILE"     => ONLY CONVERT DON'T GCC COMPILE *
- *     (8) "#define DECLASS_NC99"         => GCC COMPILE W/O "-std=c99"     *
+ *     (8) "#define DECLASS_NC11"         => GCC COMPILE W/O "-std=c11"     *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
