@@ -135,7 +135,7 @@
  *     (5) "#define DECLASS_NOISYSMRTPTR" => ALERT "SMRTPTR.H"'S ALLOC/FREE *
  *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *     (7) "#define DECLASS_NCOMPILE"     => ONLY CONVERT DON'T GCC COMPILE *
- *     (8) "#define DECLASS_NC99"         => GCC COMPILE W/O "-std=c99"     *
+ *     (8) "#define DECLASS_NC11"         => GCC COMPILE W/O "-std=c11"     *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
@@ -193,7 +193,7 @@ bool *IMMORTALITY   = &DEFNS.defaults[3];  // confirms default enabling of "immo
 bool *DTOR_RETURN   = &DEFNS.defaults[4];  // returned objects also dtor'd                          (default false)
 bool *NOISY_SMRTPTR = &DEFNS.defaults[5];  // confirms whether to alert all smrtptr.h alloc/freeing (default false)
 bool NO_SMRTASSERT       = false;          // deactivates all "smrtassert()" statements             (default false)
-bool NO_C99_COMPILE_FLAG = false;          // compiles declassified file w/o "-std=c99"             (default false)
+bool NO_C11_COMPILE_FLAG = false;          // compiles declassified file w/o "-std=c11"             (default false)
 bool NO_COMPILE          = false;          // declass.c declassifies but DOESN'T compile given file (default false)
 
 /* NOTE: IT IS ASSUMED THAT USER-DEFINED ALLOCATION FCNS RETURN NULL OR END PROGRAM UPON ALLOC FAILURE */
@@ -534,10 +534,10 @@ int main(int argc, char *argv[]) {
   char compile_cmd[250];
   FLOOD_ZEROS(compile_cmd, 250);
 
-  if(!NO_COMPILE && NO_C99_COMPILE_FLAG)
+  if(!NO_COMPILE && NO_C11_COMPILE_FLAG)
     sprintf(compile_cmd, "gcc -o %s %s", original_filename_executable, filename);
   else if(!NO_COMPILE)
-    sprintf(compile_cmd, "gcc -std=c99 -o %s %s", original_filename_executable, filename);
+    sprintf(compile_cmd, "gcc -std=c11 -o %s %s", original_filename_executable, filename);
 
   printf("%s", filename);
   if(!NO_COMPILE)
@@ -577,13 +577,13 @@ int main(int argc, char *argv[]) {
 * BRACE-ADDITION FUNCTION
 ******************************************************************************/
 
-// detect & register "smrtassert" & "no C99"/"no compile" macro flags
+// detect & register "smrtassert" & "no C11"/"no compile" macro flags
 bool at_smrtassert_or_compile_macro_flag(char *p) {
   bool found_macro = false;
   if(is_at_substring(p, "DECLASS_NDEBUG") && !VARCHAR(*(p+strlen("DECLASS_NDEBUG")))) 
     NO_SMRTASSERT = true, found_macro = true;
-  else if(is_at_substring(p, "DECLASS_NC99") && !VARCHAR(*(p+strlen("DECLASS_NC99")))) 
-    NO_C99_COMPILE_FLAG = true, found_macro = true;
+  else if(is_at_substring(p, "DECLASS_NC11") && !VARCHAR(*(p+strlen("DECLASS_NC11")))) 
+    NO_C11_COMPILE_FLAG = true, found_macro = true;
   else if(is_at_substring(p, "DECLASS_NCOMPILE") && !VARCHAR(*(p+strlen("DECLASS_NCOMPILE")))) 
     NO_COMPILE = true, found_macro = true;
   return found_macro;
