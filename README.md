@@ -107,6 +107,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ### Objects Declared as "immortal" are Never Dtor'd:
 * _**Declaration**:_ `immortal className objName(args);`
 * _**Contained objects** can **also** be immortal!_
+* **WARNING: *an immortal object's contained members are also immortal!***
 ### Object Arguments are Always "immortal":
 * _As placeholders, the passed object they represent aren't out of scope once the fcn ends (no double Dtor)_
 * [Macro Flag (3)](#declass-cs-pre-preprocessor-specialization-macro-flags) _below disables **all** immortal objects **except** object arguments_
