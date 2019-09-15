@@ -120,6 +120,7 @@
  *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR                *
  *       (*) DECLARATION: "immortal className objName(args);"               *
  *       (*) contained objects can also be immortal                         *
+ *       (*) WARNING: AN "IMMORTAL" OBJECT'S MEMBERS ALSO ALL = "IMMORTAL"  *
  *   (1) OBJ ARGS ALWAYS IMMORTAL: AS PLACEHOLDERS, THE PASSED OBJ THEY     *
  *       REPRESENT AREN'T OUT OF SCOPE ONCE FCN ENDS (NO DOUBLE DTOR)       *
  *       (*) thus denoting obj args as "immortal" is redundant              *
