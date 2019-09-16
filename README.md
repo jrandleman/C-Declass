@@ -1,18 +1,32 @@
 # Declass-C
 ## Declassifier Enables Classes in C by Pre-Preprocessing & Compiling Files!
-#### **_Ctors/Dtors, Member Default Values/Allocation, Methods, Object Arrays/Ptrs/Containment, Smart Ptrs, and more!_**
+#### **_Ctors/Dtors, Member Default Values/Allocation, Methods, Object Arrays/Ptrs/Containment, Smart Ptrs, Cola Polymorphism, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
-### Compile [declass.c](https://github.com/jrandleman/Declass-C/blob/master/declass.c) (_add '`-l`' for [class info](#-l-output-for-the-simple-sample-stack-class)!_): 
+### Compile [declass.c](https://github.com/jrandleman/Declass-C/blob/master/declass.c) (_add "`-l`" for [class info](#-l-output-for-the-simple-sample-stack-class)!_): 
 ```c
 $ gcc -o declass declass.c
 $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
+### Command-Line Arguments:
+_1. Show Class-Object & Cola-Overloading Data via_ `-l`_:_</br>
+* `$ ./declass -l yourFile.c`</br>
+
+_2. Save Temp File Made Prior to Passing File to_ `cola.c` _via_ `-save-temps`_:_</br>
+* `$ ./declass -save-temps yourFile.c`</br>
+
+_3. Don't Auto-Compile Converted File (as if had included "_[`#define DECLASS_NCOMPILE`](#declass-cs-10-caveats-straight-from-declassc)_") via_ `-no-compile`_:_</br>
+* `$ ./declass -no-compile yourFile.c`
+
+_4. Can Combine Any of the Above, so Long as_ `yourFile.c` _is the Last Arg:_
+* ***IE VALID:*** `$ ./declass -no-compile -l -save-temps yourFile.c`
+* ***INVALID:*** `$ ./declass -no-compile -l yourFile.c -save-temps`
 ### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
+* _Unless deactivated, see_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)_, programs are then passed to my_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _polymorphic parser_
 * _Converted programs are automatically compiled in_ `C11`_'s standard via_ `GCC` _as a binary file w/ the original name_
-  * `yourFile.c` _is converted to_ `yourFile_DECLASS.c` _is compiled to_ `yourFile`
+  * `yourFile.c`_=declass=>_`yourFile_DECLASS_PRECOLA.c`_=cola=>_`yourFile_DECLASS.c`_=compile=>_`yourFile`
   * [Macro Flags 7-8](#declass-cs-pre-preprocessor-specialization-macro-flags) _can disable both the_ `C11` _standard as well as automatic compiling as a whole_
 * _Provided_ "`declass_SampleExec.c`" _demos classes, and_ "`declass_SampleExec_DECLASS.c`" _shows conversion_
 * _Adhere to the_ [10 Caveats](#declass-cs-10-caveats-straight-from-declassc) _& use_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _as an operations reference!_
@@ -53,12 +67,32 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
  *****************************************************************************/
 ```
 --------------
-## Enables My "`smrtptr.h`" Library By Default:
+## Enables My "[`smrtptr.h`](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)" Library By Default:
 * _Improves upon_ "`stdlib.h`"_'s_ "`malloc`" _,_ "`calloc`" _,_ "`realloc`" _, and_ "`free`" _by automating garbage collection_ 
 * _Improves upon_ "`assert.h`"_'s_ "`assert`" _function to free smart pointers prior exiting_
 * "`smrtptr.h`"_'s functions work exactly like_ `stdlib.h`/`assert.h`_'s with each prefixed by_ "`smrt`"
-* _Learn more about_ "`smrtptr.h`" _by checking it out in my_ [C-Library](https://github.com/jrandleman/C-Libraries)  _repository or by_ [clicking here](https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer)
+* _Learn more about_ "`smrtptr.h`" _by checking it out in my_ [C-Library](https://github.com/jrandleman/C-Libraries)  _repository_
 * _Disable_ "`smrtptr.h`"_'s default inclusion via_ [Macro Flag (2)](#declass-cs-pre-preprocessor-specialization-macro-flags)
+--------------
+## Enables My "[`cola.c`](https://github.com/jrandleman/Cola)" Polymorphic Parser By Default:
+* `cola.c` _(C Overloaded Length Arguments) parser is automatically applied to converted files prior to compiling_
+* _Allows for fcn & macro polymorphism (where 2+ share the same name) so long as they take different #'s of args!_
+  * _thus "ctor"s_ **CAN** _be overloaded but "dtor"s_ **CANNOT**
+* _Disable_ "`cola.c`"_'s default application via_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)
+#### _Cola-C's 6 Caveats (wrt `declass.c`'s integration):_
+```c
+/*****************************************************************************
+ *                         -:- COLA.C 6 CAVEATS -:-                         *
+ *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
+ *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
+ *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
+ *   (2) NO FCN PTRS POINTING TO OVERLOADED FCNS                            *
+ *       (*) can't determine overloaded arg # from only overloaded fcn name *
+ *   (3) NO REDEFINING OVERLOADED NAME AS A DIFFERENT VAR NAME IN ANY SCOPE *
+ *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
+ *   (5) ONLY GLOBALLY/CLASS-MEMBER DEFINED FCNS/MACROS CAN BE OVERLOADED   *
+ *****************************************************************************/
+```
 --------------
 ## Using Constructors (Ctors) & Destructors (Dtors):
 ### Formatting:                                                           
@@ -140,6 +174,9 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
    ```
 8) ```c
    #define DECLASS_NC11         // GCC compiles declassified file w/o "-std=c11"
+   ```
+9) ```c
+   #define DECLASS_NCOLA        // disables "cola.c" overload parser invocation
    ```
 ### Defining Custom Memory Allocation Functions:
 * `declass.c` _relies on identifying memory allocation functions to not apply dflt vals to garbage memory_
