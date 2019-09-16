@@ -16,7 +16,7 @@ _1. Show Class-Object & Cola-Overloading Data via_ `-l`_:_</br>
 _2. Save Temp File Made Prior to Passing File to_ `cola.c` _via_ `-save-temps`_:_</br>
 * `$ ./declass -save-temps yourFile.c`</br>
 
-_3. Don't Auto-Compile Converted File (as if had included "_[`#define DECLASS_NCOMPILE`](#declass-cs-10-caveats-straight-from-declassc)_") via_ `-no-compile`_:_</br>
+_3. Don't Auto-Compile Converted File (as if had included "_[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)_") via_ `-no-compile`_:_</br>
 * `$ ./declass -no-compile yourFile.c`
 
 _4. Can Combine Any of the Above, so Long as_ `yourFile.c` _is the Last Arg:_
