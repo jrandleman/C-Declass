@@ -1,4 +1,4 @@
-/* DECLASSIFIED: declass_SampleExec_DECLASS.c
+/* DECLASSIFIED: declass_SampleExec.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
@@ -127,9 +127,9 @@ void smrtfree(void *ptr) {
   for(int DC__Student_IDX=0;DC__Student_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_IDX)\
     DC__Student_CTOR(DC_ARR[DC__Student_IDX]);\
 })
-#define DC__Student_UCTOR_ARR(DC_ARR, ...) ({\
+#define DC__Student_UCTOR_ARR(DC_ARR, DC___A1_Student, DC___A2_Student, DC___A3_Student) ({\
   for(int DC__Student_UCTOR_IDX=0;DC__Student_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_UCTOR_IDX)\
-    DC_Student_(__VA_ARGS__, &DC_ARR[DC__Student_UCTOR_IDX]);\
+    DC_Student_(DC___A1_Student, DC___A2_Student, DC___A3_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
 })
 /* "Student" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Student_UDTOR_ARR(DC_ARR) ({\
@@ -158,10 +158,10 @@ Student DC__Student_DFLT(){
 }
 
 /* DEFAULT PROVIDED "Student" CLASS CONSTRUCTOR/DESTRUCTOR: */
-#define DC__DUMMY_Student(...)({\
+#define DC__DUMMY_Student(DC___D1_Student, DC___D2_Student, DC___D3_Student)({\
 	Student DC__Student__temp;\
 	DC__Student_CTOR(DC__Student__temp);\
-	DC_Student_(__VA_ARGS__, &DC__Student__temp);\
+	DC_Student_(DC___D1_Student, DC___D2_Student, DC___D3_Student,  &DC__Student__temp);\
 })
 
 /* "Student" CLASS METHODS SPLICED OUT: */
@@ -216,7 +216,7 @@ Student DC__Student_DFLT(){
 })
 #define DC__College_UCTOR_ARR(DC_ARR) ({\
   for(int DC__College_UCTOR_IDX=0;DC__College_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__College_UCTOR_IDX)\
-    DC_College_(&DC_ARR[DC__College_UCTOR_IDX]);\
+DC_College_(&DC_ARR[DC__College_UCTOR_IDX]);\
 })
 /* "College" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__College_UDTOR_ARR(DC_ARR) ({\
@@ -292,7 +292,7 @@ College DC_College_(College*this){return*this;}
 })
 #define DC__Region_UCTOR_ARR(DC_ARR) ({\
   for(int DC__Region_UCTOR_IDX=0;DC__Region_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Region_UCTOR_IDX)\
-    DC_Region_(&DC_ARR[DC__Region_UCTOR_IDX]);\
+DC_Region_(&DC_ARR[DC__Region_UCTOR_IDX]);\
 })
 /* "Region" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Region_UDTOR_ARR(DC_ARR) ({\
