@@ -80,7 +80,7 @@
  *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER IS DFLT APPLIED TO CONVERTED *
  *    FILES PRIOR COMPILING - ALLOWS FCN & MACRO POLYMORPHISM (2+ SHARE THE *
  *    SAME NAME) SO LONG AS THEY TAKE DIFFERENT NUMBERS OF ARGS!            *
- *      (*) thus "ctor"s CAN be overloaded but "dtors" CANNOT               *
+ *      (*) thus "ctor"s CAN be overloaded but "dtor"s CANNOT               *
  *                         -:- COLA.C 6 CAVEATS -:-                         *
  *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
  *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
@@ -244,7 +244,7 @@ char brace_keywords[TOTAL_BRACE_KEYWORDS][8] = {"else if", "if", "else", "for", 
 /* C.O.L.A. "C OVERLOADED LENGTH ARGUMENTS" PARSER MAIN EXECUTION */
 bool COLA_C_main_execution(bool, char*);
 /* BRACE-ADDITION FUNCTION */
-bool at_smrtassert_or_compile_macro_flag(char*);
+bool at_smrtassert_or_compile_or_cola_macro_flag(char*);
 void add_braces(char []);
 /* MESSAGE FUNCTIONS */
 void process_cmd_flag(char*, bool*, bool*);
@@ -653,7 +653,7 @@ int main(int argc, char *argv[]) {
 ******************************************************************************/
 
 // detect & register "smrtassert" & "no C11"/"no compile" macro flags
-bool at_smrtassert_or_compile_macro_flag(char *p) {
+bool at_smrtassert_or_compile_or_cola_macro_flag(char *p) {
   bool found_macro = false;
   if(is_at_substring(p, "DECLASS_NDEBUG") && !VARCHAR(*(p+strlen("DECLASS_NDEBUG")))) 
     NO_SMRTASSERT = true, found_macro = true;
@@ -691,10 +691,10 @@ void add_braces(char file_contents[]) {
           if(is_at_substring(&file_contents[l], "DECLASS_ALLOC_FCNS")) {
             register_user_defined_alloc_fcns(&file_contents[l]);
             // skip over user-defined fcns & don't copy to new file (don't want to #define fcn names redefined later)
-            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\')) ++l;
+            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l-1] == '\\')) ++l;
           } 
-          if(at_smrtassert_or_compile_macro_flag(&file_contents[l]))
-            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l] == '\\')) ++l;
+          if(at_smrtassert_or_compile_or_cola_macro_flag(&file_contents[l]))
+            while(file_contents[l] != '\0' && (file_contents[l] != '\n' || file_contents[l-1] == '\\')) ++l;
           for(; flag < TOTAL_FLAGS; ++flag)
             if(is_at_substring(&file_contents[l], DEFNS.flags[flag]) 
               && !VARCHAR(file_contents[l+strlen(DEFNS.flags[flag])])) {               
@@ -3025,6 +3025,10 @@ bool macro_is_functionlike(char*);
 /* "overload_fmacs" (FUNCTION MACRO OVERLOAD INSTANCES) STRUCT HELPER FUNCTIONS */
 bool name_not_in_overload_fmacs(char*);
 int overload_fmacs_instance_idx(int);
+/* O/P ALIGNMENT SPACE-PADDING FUNCTIONS */
+int max_fmacs_name_length();
+int max_overload_fmacs_name_length();
+void print_space_padding(int, int);
 /* MESSAGING FUNCTIONS */
 void COLA_in_ASCII();
 void terminate_program(char*);
@@ -3068,20 +3072,30 @@ bool COLA_C_main_execution(bool show_cola_info, char *declass_filename) {
   
   // show cola overload/registered global fcn/macro data (if "-l" flag active)
   if(show_cola_info) {
+    int max = 0, i = 0, j = 0;
     if(overload_fmacs_size > 0) {
+      max = max_overload_fmacs_name_length();
       printf("\n\033[1m>> \033[4mOVERLOADS\033[0m\033[1m:\033[0m\n");
-      for(int i = 0; i < overload_fmacs_size; ++i) {
-        printf("   %02d) \033[1m\033[4mNAME\033[0m \"%s\" \033[1m\033[4mOVERLOADS\033[0m", i + 1, overload_fmacs[i].name);      
-        for(int j = 0; j < overload_fmacs[i].arg_sizes_length; ++j)
+      for(i = 0; i < overload_fmacs_size; ++i) {
+        printf("   %02d) \033[1m\033[4mNAME\033[0m \"%s\"", i + 1, overload_fmacs[i].name);
+        print_space_padding(strlen(overload_fmacs[i].name), max);
+        printf(" \033[1m\033[4mOVERLOAD ARG LENGTHS\033[0m");      
+        for(j = 0; j < overload_fmacs[i].arg_sizes_length; ++j) {
           printf(" %d", overload_fmacs[i].arg_sizes[j]);
+          if(j < overload_fmacs[i].arg_sizes_length - 1) printf(",");
+        }
         printf("\n");
       }
     }
 
+    max = max_fmacs_name_length();
     printf("\n\033[1m>> \033[4mALL REGISTERED GLOBAL FCNS/MACROS\033[0m\033[1m:\033[0m\n");
-    for(int i = 0; i < fmacs_size; ++i)
-      printf("   %02d) \033[1m\033[4mNAME\033[0m \"%s\", \033[1m\033[4mARGS LENGTH\033[0m %d, \033[1m\033[4mIS A PROTOTYPE\033[0m %d\n", 
-        i + 1, fmacs[i].name, fmacs[i].args, fmacs[i].is_a_prototype);
+    for(i = 0; i < fmacs_size; ++i) {
+      printf("   %02d) \033[1m\033[4mNAME\033[0m \"%s\", ", i + 1, fmacs[i].name);
+      print_space_padding(strlen(fmacs[i].name), max);
+      printf("\033[1m\033[4mIS PROTOTYPE\033[0m %d, \033[1m\033[4mTOTAL ARGS\033[0m %d\n", 
+        fmacs[i].is_a_prototype, fmacs[i].args);
+    }
   }
 
   // output results or rename file if no overloads
@@ -3282,6 +3296,31 @@ int overload_fmacs_instance_idx(int fmacs_idx) {
   // isn't in the "overload_fmacs" struct, BUT this function is only triggered if the name IS in 
   // "overload_fmacs" as per the "name_not_in_overload_fmacs" function above returning "false"
   return -1; 
+}
+
+/******************************************************************************
+* O/P ALIGNMENT SPACE-PADDING FUNCTIONS
+******************************************************************************/
+
+// get the max fcn/macro name length in "fmacs" struct
+int max_fmacs_name_length() {
+  int max = 0, length;
+  for(int i = 0; i < fmacs_size; ++i)
+    if((length = strlen(fmacs[i].name)) > max) max = length;
+  return max;
+}
+
+// get the max fcn/macro name length in "overload_fmacs" struct
+int max_overload_fmacs_name_length() {
+  int max = 0, length;
+  for(int i = 0; i < fmacs_size; ++i)
+    if((length = strlen(overload_fmacs[i].name)) > max) max = length;
+  return max;
+}
+
+// print spaces to pad btwn the 1st column of names & the 2nd data column to align output
+void print_space_padding(int length, int max) {
+  for(int i = length; i < max; ++i) printf(" ");
 }
 
 /******************************************************************************
