@@ -1,4 +1,4 @@
-/* DECLASSIFIED: deque_class_DECLASS.c
+/* DECLASSIFIED: deque_class_test.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
@@ -136,7 +136,7 @@ typedef struct node {
 })
 #define DC__Deque_UCTOR_ARR(DC_ARR) ({\
   for(int DC__Deque_UCTOR_IDX=0;DC__Deque_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Deque_UCTOR_IDX)\
-    DC_Deque_(&DC_ARR[DC__Deque_UCTOR_IDX]);\
+DC_Deque_(&DC_ARR[DC__Deque_UCTOR_IDX]);\
 })
 /* "Deque" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Deque_UDTOR_ARR(DC_ARR) ({\
