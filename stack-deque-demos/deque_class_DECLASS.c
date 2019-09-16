@@ -1,4 +1,4 @@
-/* DECLASSIFIED: deque_class_test.c
+/* DECLASSIFIED: deque_class.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
