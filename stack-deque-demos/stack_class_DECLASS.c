@@ -1,4 +1,4 @@
-/* DECLASSIFIED: stack_class_DECLASS.c
+/* DECLASSIFIED: stack_class.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
@@ -125,9 +125,9 @@ void smrtfree(void *ptr) {
   for(int DC__Stack_IDX=0;DC__Stack_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Stack_IDX)\
     DC__Stack_CTOR(DC_ARR[DC__Stack_IDX]);\
 })
-#define DC__Stack_UCTOR_ARR(DC_ARR, ...) ({\
+#define DC__Stack_UCTOR_ARR(DC_ARR, DC___A1_Stack, DC___A2_Stack) ({\
   for(int DC__Stack_UCTOR_IDX=0;DC__Stack_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Stack_UCTOR_IDX)\
-    DC_Stack_(__VA_ARGS__, &DC_ARR[DC__Stack_UCTOR_IDX]);\
+    DC_Stack_(DC___A1_Stack, DC___A2_Stack, &DC_ARR[DC__Stack_UCTOR_IDX]);\
 })
 /* "Stack" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Stack_UDTOR_ARR(DC_ARR) ({\
@@ -149,10 +149,10 @@ Stack DC__Stack_DFLT(){
 }
 
 /* DEFAULT PROVIDED "Stack" CLASS CONSTRUCTOR/DESTRUCTOR: */
-#define DC__DUMMY_Stack(...)({\
+#define DC__DUMMY_Stack(DC___D1_Stack, DC___D2_Stack)({\
 	Stack DC__Stack__temp;\
 	DC__Stack_CTOR(DC__Stack__temp);\
-	DC_Stack_(__VA_ARGS__, &DC__Stack__temp);\
+	DC_Stack_(DC___D1_Stack, DC___D2_Stack,  &DC__Stack__temp);\
 })
 
 /* "Stack" CLASS METHODS SPLICED OUT: */
