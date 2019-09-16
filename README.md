@@ -10,12 +10,12 @@ $ gcc -o declass declass.c
 $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 ### Command-Line Arguments:
-***1. Show Class-Object & Cola-Overloading Data via `-l`:*** `$ ./declass -l yourFile.c`</br>
-***2. Save Temp File Made Prior to Passing File to `cola.c` via `-save-temps`:*** `$ ./declass -save-temps yourFile.c`</br>
-***3. No Auto-Compile (like "[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)") via `-no-compile`:*** `$ ./declass -no-compile yourFile.c`</br>
-***4. Can Combine Any of the Above, so Long as `yourFile.c` is the Last Arg:***
-* ***IE VALID:*** `$ ./declass -no-compile -l -save-temps yourFile.c`
-* ***INVALID:*** `$ ./declass -no-compile -l yourFile.c -save-temps`
+* _Show Class-Object & Cola-Overloading Data via_ `-l`_:_ `$ ./declass -l yourFile.c`</br>
+* _Save Temp File Made Prior to Passing File to_ `cola.c` _via_ `-save-temps`_:_ `$ ./declass -save-temps yourFile.c`</br>
+* _No Auto-Compile (like_ "[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)") _via_ `-no-compile`_:_ `$ ./declass -no-compile yourFile.c`</br>
+* _Can Combine Any of the Above, so Long as_ `yourFile.c` _is the Last Arg:_
+  * ***IE VALID:*** `$ ./declass -no-compile -l -save-temps yourFile.c`
+  * ***INVALID:*** `$ ./declass -no-compile -l yourFile.c -save-temps`
 ### Implementation:
 * _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_
 * _Unless deactivated, see_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)_, programs are then passed to my_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _polymorphic parser_
