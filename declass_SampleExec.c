@@ -13,8 +13,9 @@
 // #define DECLASS_NDEBUG       // disables all smrtptr.h's "smrtassert()" statements
 // #define DECLASS_NCOMPILE     // declass.c declassifies but DOESN'T GCC compile converted file
 // #define DECLASS_NC11         // GCC compiles declassified file w/o "-std=c11"
+// #define DECLASS_NCOLA        // prevents declass.c from passing the converted file to cola.c for arg # overloads
 
-// users can list custom object memory allocation fcns to be recognized 
+// users can list custom object memory allocation fcns to be recognized
 // by declass.c in implementing constructors correctly for object ptrs
 // #define DECLASS_ALLOC_FCNS allocer1, allocer2 // NOTE: declass.c default recognizes malloc/calloc/smrtmalloc/smrtcalloc
 
@@ -57,6 +58,21 @@
  *    SMRTPTR.H LIBRARY IS DEFAULT INCLUDED, W/ IMPROVED MALLOC, CALLOC,    *
  *    REALLOC, & FREE FUNCTIONS AS WELL AS GARBAGE COLLECTION               *
  *      (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"    *
+ *****************************************************************************
+ *                        -:- DECLASS.C & COLA.C -:-                        *
+ *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER IS DFLT APPLIED TO CONVERTED *
+ *    FILES PRIOR COMPILING - ALLOWS FCN & MACRO POLYMORPHISM (2+ SHARE THE *
+ *    SAME NAME) SO LONG AS THEY TAKE DIFFERENT NUMBERS OF ARGS!            *
+ *      (*) thus "ctor"s CAN be overloaded but "dtor"s CANNOT               *
+ *                         -:- COLA.C 6 CAVEATS -:-                         *
+ *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
+ *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
+ *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
+ *   (2) NO FCN PTRS POINTING TO OVERLOADED FCNS                            *
+ *       (*) can't determine overloaded arg # from only overloaded fcn name *
+ *   (3) NO REDEFINING OVERLOADED NAME AS A DIFFERENT VAR NAME IN ANY SCOPE *
+ *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
+ *   (5) ONLY GLOBALLY/CLASS-MEMBER DEFINED FCNS/MACROS CAN BE OVERLOADED   *
  *****************************************************************************
  *                     -:- DECLASS.C CTORS & DTORS -:-                      *
  *   FORMATTING:                                                            *
@@ -108,6 +124,17 @@
  *       (*) thus denoting obj args as "immortal" is redundant              *
  *       (*) "MACRO FLAG" (3) disables all immortal obj EXCEPT obj args     *
  *****************************************************************************
+ *                    -:- DECLASS.C 3 CMD LINE FLAGS -:-                    *
+ *   (0) SHOW CLASS-OBJECT & COLA-OVERLOADING DATA:                         *
+ *         (*) "-l": $ ./declass -l yourFile.c                              *
+ *   (1) SAVE TEMP FILE MADE PRIOR TO PASSING CONVERTED FILE TO COLA.C:     *
+ *         (*) "-save-temps": $ ./declass -save-temps yourFile.c            *
+ *   (2) DON'T AUTO-COMPILE CONVERTED FILE (like #define DECLASS_NCOMPILE)  *
+ *         (*) "-no-compile": $ ./declass -no-compile yourFile.c            *
+ *   ->> Combine any of the above, so long as "yourFile.c" is the last arg  *
+ *         (*) VALID:   $ ./declass -no-compile -l -save-temps yourFile.c   *
+ *         (*) INVALID: $ ./declass -no-compile -l yourFile.c -save-temps   *
+ *****************************************************************************
  *               -:- DECLASS.C SPECIALIZATION MACRO FLAGS -:-               *
  *   BY PRECEDENCE:                                                         *
  *     (0) "#define DECLASS_IGNORE"       => DECLASS.C WON'T CONVERT FILE   *
@@ -119,6 +146,7 @@
  *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *     (7) "#define DECLASS_NCOMPILE"     => ONLY CONVERT DON'T GCC COMPILE *
  *     (8) "#define DECLASS_NC11"         => GCC COMPILE W/O "-std=c11"     *
+ *     (9) "#define DECLASS_NCOLA"        => DISABLE COLA.C OVERLOAD PARSER *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
