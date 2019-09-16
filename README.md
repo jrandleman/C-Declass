@@ -10,16 +10,10 @@ $ gcc -o declass declass.c
 $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 ### Command-Line Arguments:
-_1. Show Class-Object & Cola-Overloading Data via_ `-l`_:_</br>
-* `$ ./declass -l yourFile.c`</br>
-
-_2. Save Temp File Made Prior to Passing File to_ `cola.c` _via_ `-save-temps`_:_</br>
-* `$ ./declass -save-temps yourFile.c`</br>
-
-_3. Don't Auto-Compile Converted File (as if had included "_[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)_") via_ `-no-compile`_:_</br>
-* `$ ./declass -no-compile yourFile.c`
-
-_4. Can Combine Any of the Above, so Long as_ `yourFile.c` _is the Last Arg:_
+***1. Show Class-Object & Cola-Overloading Data via `-l`:*** `$ ./declass -l yourFile.c`</br>
+***2. Save Temp File Made Prior to Passing File to `cola.c` via `-save-temps`:*** `$ ./declass -save-temps yourFile.c`</br>
+***3. No Auto-Compile (like "[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)") via `-no-compile`:*** `$ ./declass -no-compile yourFile.c`</br>
+***4. Can Combine Any of the Above, so Long as `yourFile.c` is the Last Arg:***
 * ***IE VALID:*** `$ ./declass -no-compile -l -save-temps yourFile.c`
 * ***INVALID:*** `$ ./declass -no-compile -l yourFile.c -save-temps`
 ### Implementation:
