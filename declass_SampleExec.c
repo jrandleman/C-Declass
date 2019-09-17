@@ -63,7 +63,7 @@
  *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER IS DFLT APPLIED TO CONVERTED *
  *    FILES PRIOR COMPILING - ALLOWS FCN & MACRO POLYMORPHISM (2+ SHARE THE *
  *    SAME NAME) SO LONG AS THEY TAKE DIFFERENT NUMBERS OF ARGS!            *
- *      (*) thus "ctor"s CAN be overloaded but "dtor"s CANNOT               *
+ *      (*) thus "CTOR"s CAN be overloaded but "DTOR"s CANNOT               *
  *                         -:- COLA.C 6 CAVEATS -:-                         *
  *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
  *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
@@ -88,9 +88,9 @@
  *         (*) NEVER have a "return" value (being typeless)                 *
  *         (*) user can explicitly invoke (object "oName" & class "cName"): *
  *             => DTOR: destroy oName immediately: "~oName();"              *
- *             => CTOR: return ctor'd cName object instance: "cName(args);" *
+ *             => CTOR: return a ctor'd cName obj instance: "cName(args);"  *
  *                => these so-called "dummy" ctors don't init specific objs *
- *                   rather they return an instance of a sample ctor'd obj  *
+ *                   rather they return a single instance of a ctor'd obj   *
  *                => "cName oName(args);" == "cName oName = cName(args);"   *
  *   DEFAULT PROPERTIES:                                                    *
  *     (0) DEFAULT CLASS CTOR/DTOR PROVIDED IF LEFT UNDEFINED BY USER       *
@@ -115,7 +115,7 @@
  *         (*) NON-DANGLING: allocate memory & ctor upon declaration        *
  *****************************************************************************
  *                  -:- DECLASS.C & "immortal" KEYWORD -:-                  *
- *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR                *
+ *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR; SEE (2) BELOW *
  *       (*) DECLARATION: "immortal className objName(args);"               *
  *       (*) contained objects can also be immortal                         *
  *       (*) WARNING: AN "IMMORTAL" OBJECT'S MEMBERS ALSO ALL = "IMMORTAL"  *
@@ -123,6 +123,8 @@
  *       REPRESENT AREN'T OUT OF SCOPE ONCE FCN ENDS (NO DOUBLE DTOR)       *
  *       (*) thus denoting obj args as "immortal" is redundant              *
  *       (*) "MACRO FLAG" (3) disables all immortal obj EXCEPT obj args     *
+ *   (2) IMMORTAL OBJECTS CAN ONLY BE DTOR'D IF EXPLICITLY BY THE USER, IE: *
+ *       (*) immortal object "oName" only destroyed if "~oName();" invoked  *
  *****************************************************************************
  *                    -:- DECLASS.C 3 CMD LINE FLAGS -:-                    *
  *   (0) SHOW CLASS-OBJECT & COLA-OVERLOADING DATA:                         *
@@ -202,6 +204,14 @@ class Student {
     assignName(userName);
     assignId(id);
     assignGpa(gpa);
+  }
+
+  // cola.c's default inclusion in declass.c (unless "#define DECLASS_NCOLA" is detected)
+  // allows functions & macros to be overloaded based on how many arguments they take
+  // => thus this ctor of 1 arg overloads the above ctor of 3 args
+  // => dtors can NEVER be COLA (C Overloaded Length Args) overloaded since they never have ANY args
+  Student(char *userName) {
+    assignName(userName);
   }
 
   // format a class dtor like a ctor, except w/ a '~' prefix (unary 'not' operator)
@@ -366,6 +376,14 @@ int main() {
   Student koenR("Koen Randleman", 1122334, 4.0); // invoke an object's class ctor by declaring it like a fcn
   printf("\t");
   koenR.show();
+
+
+  // Single object COLA-overloaded constructor (overloading enabled via my declass.c-embedded cola.c parser)
+  // => note that overloading fcns/macros by their # of args will NOT work if "#define DECLASS_NCOLA" is detected
+  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
+  Student luluR("Louis Randleman"); // invokes the object's class ctor variant accepting 1 arg rather than 3
+  printf("\t");
+  luluR.show();
 
 
   // Single object "dummy" constructor
