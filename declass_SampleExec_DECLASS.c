@@ -1,5 +1,6 @@
 /* DECLASSIFIED: declass_SampleExec.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
+int DC__NDTR = 1;
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
 // Source: https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer
@@ -17,7 +18,7 @@ static void smrtptr_free_all() {
   int i = 0;
   for(; i < SMRTPTR_GC.len; ++i) free(SMRTPTR_GC.ptrs[i]);
   if(SMRTPTR_GC.len > 0) free(SMRTPTR_GC.ptrs);
-  // if(SMRTPTR_GC.len > 0) printf("FREED %ld SMART POINTERS!\n", SMRTPTR_GC.len); // optional
+  if(SMRTPTR_GC.len > 0) printf("FREED %ld SMART POINTERS!\n", SMRTPTR_GC.len); // optional
   SMRTPTR_GC.len = 0;
 }
 // throws invalid allocation errors
@@ -127,18 +128,23 @@ void smrtfree(void *ptr) {
   for(int DC__Student_IDX=0;DC__Student_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_IDX)\
     DC__Student_CTOR(DC_ARR[DC__Student_IDX]);\
 })
-#define DC__Student_UCTOR_ARR(DC_ARR, DC___A1_Student, DC___A2_Student, DC___A3_Student) ({\
+#define DC__4_DC__Student_UCTOR_ARR(DC_ARR, DC___A1_Student, DC___A2_Student, DC___A3_Student) ({\
   for(int DC__Student_UCTOR_IDX=0;DC__Student_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_UCTOR_IDX)\
-    DC_Student_(DC___A1_Student, DC___A2_Student, DC___A3_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
+    DC__4_DC_Student_(DC___A1_Student, DC___A2_Student, DC___A3_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
+})
+#define DC__2_DC__Student_UCTOR_ARR(DC_ARR, DC___A1_Student) ({\
+  for(int DC__Student_UCTOR_IDX=0;DC__Student_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_UCTOR_IDX)\
+    DC__2_DC_Student_(DC___A1_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
 })
 /* "Student" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Student_UDTOR_ARR(DC_ARR) ({\
   for(int DC__Student_UDTOR_IDX=0;DC__Student_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_UDTOR_IDX)\
-		DC__NOT_Student_(&DC_ARR[DC__Student_UDTOR_IDX]);\
+		if(DC_ARR[DC__Student_UDTOR_IDX].DC_DTR){DC__NOT_Student_(&DC_ARR[DC__Student_UDTOR_IDX]);DC_ARR[DC__Student_UDTOR_IDX].DC_DTR=NULL;}\
 })
 
 /* "Student" CLASS CONVERTED TO STRUCT: */
 typedef struct DC_Student {
+	int *DC_DTR;
   char *fullname;
   char school[15];
   int year;
@@ -153,15 +159,20 @@ typedef struct DC_Student {
 
 } Student;
 Student DC__Student_DFLT(){
-	Student this={smrtmalloc(sizeof(char)*50),"SCU",14,0,strcpy,{"Computer Science Engineering", 4.0},};
+	Student this={&DC__NDTR,smrtmalloc(sizeof(char)*50),"SCU",14,0,strcpy,{"Computer Science Engineering", 4.0},};
 	return this;
 }
 
 /* DEFAULT PROVIDED "Student" CLASS CONSTRUCTOR/DESTRUCTOR: */
-#define DC__DUMMY_Student(DC___D1_Student, DC___D2_Student, DC___D3_Student)({\
+#define DC__3_DC__DUMMY_Student(DC___D1_Student, DC___D2_Student, DC___D3_Student)({\
 	Student DC__Student__temp;\
 	DC__Student_CTOR(DC__Student__temp);\
-	DC_Student_(DC___D1_Student, DC___D2_Student, DC___D3_Student,  &DC__Student__temp);\
+	DC__4_DC_Student_(DC___D1_Student, DC___D2_Student, DC___D3_Student,  &DC__Student__temp);\
+})
+#define DC__1_DC__DUMMY_Student(DC___D1_Student)({\
+	Student DC__Student__temp;\
+	DC__Student_CTOR(DC__Student__temp);\
+	DC__2_DC_Student_(DC___D1_Student,  &DC__Student__temp);\
 })
 
 /* "Student" CLASS METHODS SPLICED OUT: */
@@ -180,17 +191,21 @@ Student DC__Student_DFLT(){
       printf(" Major: %s, GPA: %.1f/%.1f\n", this->grades.major, this->grades.gpa, this->grades.out_of);
     }
   }
-  Student DC_Student_(char *userName, long id, float gpa, Student *this) {
+  Student DC__4_DC_Student_(char *userName, long id, float gpa, Student *this) {
     DC_Student_assignName(userName, this);
     DC_Student_assignId(id, this);
     DC_Student_assignGpa(gpa, this);
+  	return *this;
+	}
+  Student DC__2_DC_Student_(char *userName, Student *this) {
+    DC_Student_assignName(userName, this);
   	return *this;
 	}
   void DC__NOT_Student_(Student *this) {
     printf("\"Student\" object named \"%s\" Destroyed!\n", this->fullname);
   }
   Student DC_Student_createAStudent(char *name, long id, float gpa, Student *this) {
-    Student methodMadeStudent; DC__Student_CTOR(methodMadeStudent); int DC_methodMadeStudent=0;
+    Student methodMadeStudent; DC__Student_CTOR(methodMadeStudent); methodMadeStudent.DC_DTR=&DC__NDTR;
     DC_Student_assignName(name, &methodMadeStudent);
     DC_Student_assignId(id, &methodMadeStudent);
     DC_Student_assignGpa(gpa, &methodMadeStudent);
@@ -199,7 +214,7 @@ Student DC__Student_DFLT(){
   void DC_Student_swap(Student *blankStudent, Student *this) {
 
 
-    immortal Student temp = *this;
+    immortal Student temp = *this; temp.DC_DTR=&DC__NDTR;
     *this = *blankStudent;
     *blankStudent = temp;
   }
@@ -221,11 +236,12 @@ DC_College_(&DC_ARR[DC__College_UCTOR_IDX]);\
 /* "College" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__College_UDTOR_ARR(DC_ARR) ({\
   for(int DC__College_UDTOR_IDX=0;DC__College_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__College_UDTOR_IDX)\
-		DC__NOT_College_(&DC_ARR[DC__College_UDTOR_IDX]);\
+		if(DC_ARR[DC__College_UDTOR_IDX].DC_DTR){DC__NOT_College_(&DC_ARR[DC__College_UDTOR_IDX]);DC_ARR[DC__College_UDTOR_IDX].DC_DTR=NULL;}\
 })
 
 /* "College" CLASS CONVERTED TO STRUCT: */
 typedef struct DC_College {
+	int *DC_DTR;
   immortal Student body[10];
   char name[20];
   int foundingYear;
@@ -233,7 +249,7 @@ typedef struct DC_College {
 
 } College;
 College DC__College_DFLT(){
-	College this={{0},{0},0,"CA",};
+	College this={&DC__NDTR,{0},{0},0,"CA",};
 	return this;
 }
 
@@ -283,9 +299,9 @@ College DC_College_(College*this){return*this;}
 #define DC__Region_CTOR(DC_THIS) ({DC_THIS = DC__Region_DFLT();\
 	DC__College_ARR(DC_THIS.schools);\
 	DC__Student_CTOR(DC_THIS.topStudent);\
-	DC_Student_("Stephen Prata", 12121212, 4.0, &DC_THIS.topStudent);\
+	DC__4_DC_Student_("Stephen Prata", 12121212, 4.0, &DC_THIS.topStudent);\
 	DC__Student_ARR(DC_THIS.second3rd4thBestStudents);\
-	DC__Student_UCTOR_ARR(DC_THIS.second3rd4thBestStudents, "John Doe", 11111110, 8.0);})
+	DC__4_DC__Student_UCTOR_ARR(DC_THIS.second3rd4thBestStudents, "John Doe", 11111110, 8.0);})
 #define DC__Region_ARR(DC_ARR) ({\
   for(int DC__Region_IDX=0;DC__Region_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Region_IDX)\
     DC__Region_CTOR(DC_ARR[DC__Region_IDX]);\
@@ -297,11 +313,12 @@ DC_Region_(&DC_ARR[DC__Region_UCTOR_IDX]);\
 /* "Region" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Region_UDTOR_ARR(DC_ARR) ({\
   for(int DC__Region_UDTOR_IDX=0;DC__Region_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Region_UDTOR_IDX)\
-		DC__NOT_Region_(&DC_ARR[DC__Region_UDTOR_IDX]);\
+		if(DC_ARR[DC__Region_UDTOR_IDX].DC_DTR){DC__NOT_Region_(&DC_ARR[DC__Region_UDTOR_IDX]);DC_ARR[DC__Region_UDTOR_IDX].DC_DTR=NULL;}\
 })
 
 /* "Region" CLASS CONVERTED TO STRUCT: */
 typedef struct DC_Region {
+	int *DC_DTR;
   College schools[2];
   int totalSchools;
   char regionName[20];
@@ -309,7 +326,7 @@ typedef struct DC_Region {
   Student second3rd4thBestStudents[3];
 } Region;
 Region DC__Region_DFLT(){
-	Region this={{0},0,{0},{0},{0},};
+	Region this={&DC__NDTR,{0},0,{0},{0},{0},};
 	return this;
 }
 
@@ -371,7 +388,7 @@ void showAllNames(Student person, Student *sharpStudent, Student people[6]) {
 College createCollege(char *name, int foundingYear) {
 
 
-  College someUniversity; DC__College_CTOR(someUniversity); int DC_someUniversity=0;
+  College someUniversity; DC__College_CTOR(someUniversity); someUniversity.DC_DTR=&DC__NDTR;
   DC_College_addName(name, &someUniversity);
   someUniversity.foundingYear = foundingYear;
   return someUniversity;
@@ -384,7 +401,7 @@ int main() {
   printf("Working with a single \"Student\" object:\n");
 
 
-  Student jordanCR; DC__Student_CTOR(jordanCR); int DC_jordanCR=0;
+  Student jordanCR; DC__Student_CTOR(jordanCR); jordanCR.DC_DTR=&DC__NDTR;
   DC_Student_assignId(1524026, &jordanCR);
   long myId = DC_Student_getId(&jordanCR);
   if(2 * DC_Student_getId(&jordanCR) > 1000)
@@ -396,18 +413,24 @@ int main() {
 
 
   printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
-  Student koenR; DC__Student_CTOR(koenR); DC_Student_("Koen Randleman", 1122334, 4.0, &koenR); int DC_koenR=0;
+  Student koenR; DC__Student_CTOR(koenR); DC__4_DC_Student_("Koen Randleman", 1122334, 4.0, &koenR); koenR.DC_DTR=&DC__NDTR;
   printf("\t");
   DC_Student_show(&koenR);
 
 
+  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
+  Student luluR; DC__Student_CTOR(luluR); DC__2_DC_Student_("Louis Randleman", &luluR); luluR.DC_DTR=&DC__NDTR;
+  printf("\t");
+  DC_Student_show(&luluR);
+
+
   printf("\nUsing the \"dummy\" constructor:\n");
-  Student tessaR = DC__DUMMY_Student("Tessa Randleman", 1678, 4.0); int DC_tessaR=0;
+  Student tessaR = DC__3_DC__DUMMY_Student("Tessa Randleman", 1678, 4.0); tessaR.DC_DTR=&DC__NDTR;
   DC_Student_show(&tessaR);
 
 
   printf("\nWorking with an array of 6 \"Student\" objects:\n");
-  Student class[6]; DC__Student_ARR(class); int DC_class=0;
+  Student class[6]; DC__Student_ARR(class);
   char names[6][20] = {"Cameron", "Sidd", "Austin", "Sabiq", "Tobias", "Gordon"};
   for(int i = 0; i < 6; ++i) {
     DC_Student_assignName(names[i], &class[i]);
@@ -423,7 +446,7 @@ int main() {
   printf("\nWorking with a constructor to initialize an array of 6 \"Student\" objects:\n");
 
 
-  Student group[6]; DC__Student_ARR(group); DC__Student_UCTOR_ARR(group, "group_student", 1111111, 3.0); int DC_group=0;
+  Student group[6]; DC__Student_ARR(group); DC__4_DC__Student_UCTOR_ARR(group, "group_student", 1111111, 3.0);
   for(int i = 0; i < 6; ++i) {
     printf("\t");
     DC_Student_show(&group[i]);
@@ -431,7 +454,7 @@ int main() {
 
 
   printf("\nWorking with a \"Student\" object pointer:\n");
-  Student *TJ = &class[5]; int DC_TJ=0;
+  Student *TJ = &class[5];
   DC_Student_assignName("TJ", TJ);
   printf("\t");
   DC_Student_show(TJ);
@@ -440,12 +463,12 @@ int main() {
 
 
   printf("\nAllocating and constructing a \"Student\" object pointer in a single line:\n");
-  Student *Alex = smrtmalloc(sizeof(Student)); if(Alex){ DC__Student_CTOR((*Alex)); DC_Student_("Alex", 88888, 4.0, Alex);} int DC_Alex=0;
+  Student *Alex = smrtmalloc(sizeof(Student)); if(Alex){ DC__Student_CTOR((*Alex));Alex->DC_DTR=&DC__NDTR; DC__4_DC_Student_("Alex", 88888, 4.0, Alex);}
   DC_Student_show(Alex);
 
 
   printf("\nExplicitly invoking a \"Student\" object's destructor:\n");
-  if(!DC_Alex){DC__NOT_Student_(Alex);DC_Alex=1;}
+  if(Alex&&Alex->DC_DTR){DC__NOT_Student_(Alex);Alex=NULL;}
 
 
 
@@ -453,7 +476,7 @@ int main() {
   printf("\nWorking with contained \"Student\" objects within a \"College\" object:\n");
 
 
-  College Scu; DC__College_CTOR(Scu); DC_College_(&Scu); int DC_Scu=0;
+  College Scu; DC__College_CTOR(Scu); DC_College_(&Scu); Scu.DC_DTR=&DC__NDTR;
   DC_College_addFoundingAndName(1851, "SCU", &Scu);
   char studentNames[10][20] = {"Cameron","Sidd","Austin","Sabiq","Tobias","Gordon","Jason","Ronnie","Kyle","Peter"};
   float studentGpas[10] = {4.0, 3.9, 4.0, 3.9, 4.0, 3.9, 4.0, 3.9, 4.0, 3.9};
@@ -472,19 +495,19 @@ int main() {
   printf("\nHaving a function make & return a \"College\" object:\n");
 
 
-  College SantaClara = createCollege("Santa Clara", 1851); int DC_SantaClara=0;
+  College SantaClara = createCollege("Santa Clara", 1851); SantaClara.DC_DTR=&DC__NDTR;
   printf("\tSantaClara \"College\" object Name: %s, State: %s, Year Founded: %d\n",
     SantaClara.name, SantaClara.state, SantaClara.foundingYear);
 
 
-  Student willAR = DC_Student_createAStudent("Will Randleman", 1524027, 4.0, &jordanCR); int DC_willAR=0;
+  Student willAR = DC_Student_createAStudent("Will Randleman", 1524027, 4.0, &jordanCR); willAR.DC_DTR=&DC__NDTR;
   printf("\nHaving a method make & return a \"Student\" object:\n");
   printf("\t");
   DC_Student_show(&willAR);
 
 
   printf("\nHaving a method swap 2 \"Student\" objects via '*this' pointer in method:\n");
-  Student jowiR; DC__Student_CTOR(jowiR); int DC_jowiR=0;
+  Student jowiR; DC__Student_CTOR(jowiR); jowiR.DC_DTR=&DC__NDTR;
   DC_Student_assignName("Jowi Randleman", &jowiR);
   DC_Student_assignId(5052009, &jowiR);
   DC_Student_assignGpa(100, &jowiR);
@@ -503,7 +526,7 @@ int main() {
   printf(" a \"College\" object array each containing a \"Student\" object array:\n");
 
 
-  immortal Region SiliconValley; DC__Region_CTOR(SiliconValley);
+  immortal Region SiliconValley; DC__Region_CTOR(SiliconValley); SiliconValley.DC_DTR=&DC__NDTR;
   DC_Region_setRegionName("Silicon Valley", &SiliconValley);
   DC_Region_addSchool(Scu, &SiliconValley);
   DC_College_addName("S C U", &SiliconValley.schools[0]);
@@ -518,15 +541,16 @@ int main() {
   printf("\nShowing a \"Region\" object's contained \"Student\" object & object array initialized w/ a ctor:\n");
   DC_Region_showTopStudents(&SiliconValley);
 
-  if(!DC_jordanCR){DC__NOT_Student_(&jordanCR);DC_jordanCR=1;}
-if(!DC_koenR){DC__NOT_Student_(&koenR);DC_koenR=1;}
-if(!DC_tessaR){DC__NOT_Student_(&tessaR);DC_tessaR=1;}
-if(!DC_class){DC__Student_UDTOR_ARR(class);DC_class=1;}
-if(!DC_group){DC__Student_UDTOR_ARR(group);DC_group=1;}
-if(!DC_TJ){DC__NOT_Student_(TJ);DC_TJ=1;}
-if(!DC_Scu){DC__NOT_College_(&Scu);DC_Scu=1;}
-if(!DC_SantaClara){DC__NOT_College_(&SantaClara);DC_SantaClara=1;}
-if(!DC_willAR){DC__NOT_Student_(&willAR);DC_willAR=1;}
-if(!DC_jowiR){DC__NOT_Student_(&jowiR);DC_jowiR=1;}
+  if(jordanCR.DC_DTR){DC__NOT_Student_(&jordanCR);jordanCR.DC_DTR=NULL;}
+if(koenR.DC_DTR){DC__NOT_Student_(&koenR);koenR.DC_DTR=NULL;}
+if(luluR.DC_DTR){DC__NOT_Student_(&luluR);luluR.DC_DTR=NULL;}
+if(tessaR.DC_DTR){DC__NOT_Student_(&tessaR);tessaR.DC_DTR=NULL;}
+DC__Student_UDTOR_ARR(class);
+DC__Student_UDTOR_ARR(group);
+if(TJ&&TJ->DC_DTR){DC__NOT_Student_(TJ);TJ=NULL;}
+if(Scu.DC_DTR){DC__NOT_College_(&Scu);Scu.DC_DTR=NULL;}
+if(SantaClara.DC_DTR){DC__NOT_College_(&SantaClara);SantaClara.DC_DTR=NULL;}
+if(willAR.DC_DTR){DC__NOT_Student_(&willAR);willAR.DC_DTR=NULL;}
+if(jowiR.DC_DTR){DC__NOT_Student_(&jowiR);jowiR.DC_DTR=NULL;}
 return 0;
 }
