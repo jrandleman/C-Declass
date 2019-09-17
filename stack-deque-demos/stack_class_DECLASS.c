@@ -1,5 +1,6 @@
 /* DECLASSIFIED: stack_class.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
+int DC__NDTR = 1;
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
 // Source: https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer
@@ -132,11 +133,12 @@ void smrtfree(void *ptr) {
 /* "Stack" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Stack_UDTOR_ARR(DC_ARR) ({\
   for(int DC__Stack_UDTOR_IDX=0;DC__Stack_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Stack_UDTOR_IDX)\
-		DC__NOT_Stack_(&DC_ARR[DC__Stack_UDTOR_IDX]);\
+		if(DC_ARR[DC__Stack_UDTOR_IDX].DC_DTR){DC__NOT_Stack_(&DC_ARR[DC__Stack_UDTOR_IDX]);DC_ARR[DC__Stack_UDTOR_IDX].DC_DTR=NULL;}\
 })
 
 /* "Stack" CLASS CONVERTED TO STRUCT: */
 typedef struct DC_Stack {
+	int *DC_DTR;
   int *arr;
   int len;
   int max;
@@ -144,7 +146,7 @@ typedef struct DC_Stack {
 
 } Stack;
 Stack DC__Stack_DFLT(){
-	Stack this={smrtmalloc(sizeof(int) * 10),0,10,};
+	Stack this={&DC__NDTR,smrtmalloc(sizeof(int) * 10),0,10,};
 	return this;
 }
 
@@ -189,7 +191,7 @@ Stack DC__Stack_DFLT(){
 int main() {
 
   printf("Working with a single \"Stack\" object initializaed with its default values:\n");
-  Stack myStack; DC__Stack_CTOR(myStack); int DC_myStack=0;
+  Stack myStack; DC__Stack_CTOR(myStack); myStack.DC_DTR=&DC__NDTR;
   DC_Stack_push(8, &myStack);
   DC_Stack_push(10, &myStack);
   DC_Stack_push(12, &myStack);
@@ -216,11 +218,11 @@ int main() {
 
   printf("\nInitializing a \"Stack\" object via its default values & class constructor:\n");
   int arr[20] = {0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181};
-  Stack newStack; DC__Stack_CTOR(newStack); DC_Stack_(arr, 20, &newStack); int DC_newStack=0;
+  Stack newStack; DC__Stack_CTOR(newStack); DC_Stack_(arr, 20, &newStack); newStack.DC_DTR=&DC__NDTR;
   printf("\"Stack\" object made with its class constructor:\n");
   DC_Stack_show(&newStack);
 
-  if(!DC_myStack){DC__NOT_Stack_(&myStack);DC_myStack=1;}
-if(!DC_newStack){DC__NOT_Stack_(&newStack);DC_newStack=1;}
+  if(myStack.DC_DTR){DC__NOT_Stack_(&myStack);myStack.DC_DTR=NULL;}
+if(newStack.DC_DTR){DC__NOT_Stack_(&newStack);newStack.DC_DTR=NULL;}
 return 0;
 }
