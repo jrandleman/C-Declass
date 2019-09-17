@@ -104,7 +104,8 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * _Can be explicitly invoked by user (suppose object_ "`objName`" _& class_ "`className`")_:_
     * _**Dtor**: destroy object_ "`objName`" _immediately:_ `~objName();`
     * _**Ctor**: return ctor'd_ "`className`" _object instance:_ `className(args);`
-      * _these so-called "dummy" ctors don't handle specific objects, but return a "dummy" ctor'd object_
+      * _so-called "dummy" ctors don't handle specific objects, but return a single "dummy" ctor'd object_
+      * _since they only return a single object, can only init an object array's elts (**not** the entire array)_
       * _**except for ptrs**,_ "`className objName(args);`" _==_ "`className objName = className(args);`"
       
 ### Default Properties:
