@@ -80,7 +80,7 @@
  *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER IS DFLT APPLIED TO CONVERTED *
  *    FILES PRIOR COMPILING - ALLOWS FCN & MACRO POLYMORPHISM (2+ SHARE THE *
  *    SAME NAME) SO LONG AS THEY TAKE DIFFERENT NUMBERS OF ARGS!            *
- *      (*) thus "ctor"s CAN be overloaded but "dtor"s CANNOT               *
+ *      (*) thus "CTOR"s CAN be overloaded but "DTOR"s CANNOT               *
  *                         -:- COLA.C 6 CAVEATS -:-                         *
  *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
  *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
@@ -105,9 +105,9 @@
  *         (*) NEVER have a "return" value (being typeless)                 *
  *         (*) user can explicitly invoke (object "oName" & class "cName"): *
  *             => DTOR: destroy oName immediately: "~oName();"              *
- *             => CTOR: return ctor'd cName object instance: "cName(args);" *
+ *             => CTOR: return a ctor'd cName obj instance: "cName(args);"  *
  *                => these so-called "dummy" ctors don't init specific objs *
- *                   rather they return an instance of a sample ctor'd obj  *
+ *                   rather they return a single instance of a ctor'd obj   *
  *                => "cName oName(args);" == "cName oName = cName(args);"   *
  *   DEFAULT PROPERTIES:                                                    *
  *     (0) DEFAULT CLASS CTOR/DTOR PROVIDED IF LEFT UNDEFINED BY USER       *
@@ -132,7 +132,7 @@
  *         (*) NON-DANGLING: allocate memory & ctor upon declaration        *
  *****************************************************************************
  *                  -:- DECLASS.C & "immortal" KEYWORD -:-                  *
- *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR                *
+ *   (0) OBJECTS DECLARED "immortal" NEVER INVOKE THEIR DTOR; SEE (2) BELOW *
  *       (*) DECLARATION: "immortal className objName(args);"               *
  *       (*) contained objects can also be immortal                         *
  *       (*) WARNING: AN "IMMORTAL" OBJECT'S MEMBERS ALSO ALL = "IMMORTAL"  *
@@ -140,6 +140,8 @@
  *       REPRESENT AREN'T OUT OF SCOPE ONCE FCN ENDS (NO DOUBLE DTOR)       *
  *       (*) thus denoting obj args as "immortal" is redundant              *
  *       (*) "MACRO FLAG" (3) disables all immortal obj EXCEPT obj args     *
+ *   (2) IMMORTAL OBJECTS CAN ONLY BE DTOR'D IF EXPLICITLY BY THE USER, IE: *
+ *       (*) immortal object "oName" only destroyed if "~oName();" invoked  *
  *****************************************************************************
  *                    -:- DECLASS.C 3 CMD LINE FLAGS -:-                    *
  *   (0) SHOW CLASS-OBJECT & COLA-OVERLOADING DATA:                         *
@@ -185,7 +187,7 @@ struct class_info {
   bool member_is_array[MAX_MEMBERS_PER_CLASS];              // init empty arrays as {0}
   bool member_is_pointer[MAX_MEMBERS_PER_CLASS];            // init pointers as 0 (same as NULL)
   bool member_value_is_alloc[MAX_MEMBERS_PER_CLASS];        // track alloc'd members for '-l' awareness & "sizeof()" arg
-  bool member_is_immortal[MAX_MEMBERS_PER_CLASS];           // track "immortal" members: never trigger user-def'd dtors
+  bool member_is_immortal[MAX_MEMBERS_PER_CLASS];           // track "immortal" members: never trigger user-def'd dtors (unless explicitly invoked)
   char member_value_user_ctor[MAX_MEMBERS_PER_CLASS][350];  // track user-define ctor arr vals (spliced out for DFLT fcn)
   char member_object_class_name[MAX_MEMBERS_PER_CLASS][75]; // used to intialize contained class objects
   int total_methods, total_members, total_uctors;
@@ -196,7 +198,7 @@ int total_classes = 0;
 struct objNames { 
   char class_name[75], object_name[75]; 
   bool is_class_pointer, is_alloced_class_pointer, is_class_array;
-  bool class_has_dtor, is_immortal;
+  bool class_has_dtor, is_immortal, is_dangling_ctord_ptr;
 } objects[MAX_OBJECTS];
 int total_objects = 0;
 
@@ -269,6 +271,8 @@ int remove_blank_lines(char*);
 bool no_overlap(char, char*);
 bool is_at_substring(char*, char*);
 void account_for_string_char_scopes(bool*, bool*, bool*, char*);
+/* DUMMY CTOR OBJECT INVOCATION CHAIN PARSER */
+void get_dummy_ctor_invoking_object_chain(char*, char*, int, bool*, bool*);
 /* OBJECT CONSTRUCTION FUNCTIONS */
 bool is_a_dummy_ctor(char*);
 void mk_initialization_brace(char [], int);
@@ -283,13 +287,13 @@ char *check_for_ctor_obj(char*, char*, int*, int*, bool*);
 /* OBJECT ARRAY DESTRUCTION-MACRO CREATION FUNCTION */
 void mk_dtor_array_macro(char [], char*);
 /* USER-DEFINED OBJECT DESTRUCTOR (DTOR) PARSING & SPLICING FUNCTIONS */
-int shiftSplice_dtor_in_buffer(char*, char*);
+int shiftSplice_dtor_in_buffer(char*, char*, bool);
 bool object_is_returned(char*);
 void get_if_else_object_idxs(char*, int*);
 bool unique_dtor_condition(char*, char*);
-int one_line_conditional(char*);
+int one_line_conditional(char*, bool);
 int return_then_immediate_exit(char*);
-void add_object_dtor(char*);
+void add_object_dtor(char*, bool, bool);
 /* OBJECT METHOD PARSER */
 int parse_method_invocation(char*, char*, int*, bool, char[][75]);
 void splice_in_prepended_method_name(char*, char*, int, char*, int*, int*, char[][75]);
@@ -304,6 +308,7 @@ int prefix_local_members_and_cpy_method_args(char*, char*, char [][75], int*, ch
 /* STORE OBJECT INFORMATION */
 bool store_object_info(char*, int, bool*);
 /* PARSE CLASS HELPER FUNCTIONS */
+void initialize_new_class_default_properties(char*);
 bool is_struct_definition(char*);
 void get_class_name(char*, char*);
 void confirm_only_one_cdtor(char*, char*, bool);
@@ -326,7 +331,7 @@ bool valid_member(char*, char*, char, char, char [][75], int);
 int parse_class(char*, char [], int*);
 
 // declassed program contact header, "immortal" keyword, & deactivate smrtassert
-#define DC_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */"
+#define DC_SUPPORT_CONTACT "Email jrandleman@scu.edu or see https://github.com/jrandleman for support */\nint DC__NDTR = 1;"
 #define IMMORTAL_KEYWORD_DEF "#define immortal // immortal keyword active\n"
 #define NDEBUG_SMRTPTR_DEF "#define DECLASS_NDEBUG // smartptr.h \"smrtassert()\"statements disabled\n"
 // smrtptr.h to implement stdlib.h's memory handling functions w/ garbage collection
@@ -477,6 +482,11 @@ int main(int argc, char *argv[]) {
   bool in_a_string = false, in_a_char = false, in_token_scope = true;
   bool found_COLA_overloads = false;
 
+  char dummy_ctor_invoking_obj_chain[300], *read, *write;
+  bool dummy_ctor_ptr_invoked, dummy_ctor_invoker_redefined;
+  int dummy_ctor_len;
+  FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, 300);
+
   // remove commments from program: ensures braces applied properly & reduces size
   whitespace_all_comments(file_contents);
   trim_sequential_spaces(file_contents);
@@ -506,25 +516,38 @@ int main(int argc, char *argv[]) {
           // check if a so-called "dummy ctor" was detected and splice 
           // in the "DC__DUMMY_" class/ctor name's prefix if so
           if(dummy_ctor) {
-            char *read = &file_contents[i], *write = &NEW_FILE[j];
-            int dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(write, read);
-            j = strlen(NEW_FILE);
-            i += dummy_ctor_len;
+            read = &file_contents[i], write = &NEW_FILE[j], dummy_ctor_ptr_invoked = dummy_ctor_invoker_redefined = false;
+            FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, 300);
+            // flag the object to be destroyed again after being assigned to a dummy ctor (being that they're a new obj instance)
+            get_dummy_ctor_invoking_object_chain(read, dummy_ctor_invoking_obj_chain, k, &dummy_ctor_ptr_invoked, &dummy_ctor_invoker_redefined);
+            dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(write, read);
+            j = strlen(NEW_FILE), i += dummy_ctor_len;
+            // As per Documentation's "DECLASS.C CTORS & DTORS" > "FORMATTING" > "(2)", dummy ctors only 
+            // return single obj instances, thus "obj arrays" are presumed to be assigning one of their
+            // individual object "cells" w/in.
+            add_object_dtor(&file_contents[i], true, dummy_ctor_invoker_redefined); 
+            if(dummy_ctor_invoker_redefined) { // Don't add for new declarations
+              if(dummy_ctor_ptr_invoked)
+                sprintf(&NEW_FILE[j], ";if(%s){%s->DC_DTR=&DC__NDTR;}", dummy_ctor_invoking_obj_chain, dummy_ctor_invoking_obj_chain);
+              else if(dummy_ctor_invoker_redefined)
+                sprintf(&NEW_FILE[j], ";%s.DC_DTR=&DC__NDTR", dummy_ctor_invoking_obj_chain);
+              j = strlen(NEW_FILE);
+            }
             break;
           }
 
-          // check if class is already initialized by user
+          // check if class object is already initialized by user
           int already_assigned = i;
           while(file_contents[already_assigned] != '\0' && no_overlap(file_contents[already_assigned], "\n;,=")) 
             ++already_assigned;
           if(file_contents[already_assigned] == '=' && !objects[total_objects-1].is_alloced_class_pointer) {
-            add_object_dtor(&file_contents[i]); 
+            add_object_dtor(&file_contents[i], true, false); 
             break;
           }
 
           // determine if object is invoking it's user-defined constructor
-          char *user_ctor_finder = &file_contents[i];
-          char user_ctor[500]; FLOOD_ZEROS(user_ctor, 500);
+          char *user_ctor_finder = &file_contents[i], user_ctor[500];
+          FLOOD_ZEROS(user_ctor, 500);
           bool is_fcn_returning_obj = false;
           bool user_ctor_invoked = get_user_ctor(user_ctor_finder,user_ctor,classes[k].class_name,&is_fcn_returning_obj);
 
@@ -534,16 +557,21 @@ int main(int argc, char *argv[]) {
           // initialization undefined -- use default initial values
           while(file_contents[i] != '\0' && file_contents[i-1] != ';') NEW_FILE[j++] = file_contents[i++];
           // if an obj ptr allocating memory, confirm obj != NULL prior to passing to ctors & dflt-val assignment
+          objects[total_objects-1].is_dangling_ctord_ptr = false; // ID dangling ptrs (no ctor/'='/alloc) to assign "objPtr=NULL" in "add_object_dtor()"
           if(objects[total_objects-1].is_alloced_class_pointer) {
-            sprintf(&NEW_FILE[j], " if(%s){", objects[total_objects-1].object_name);
-            j = strlen(NEW_FILE);
+            sprintf(&NEW_FILE[j], " if(%s){", objects[total_objects-1].object_name), j = strlen(NEW_FILE);
+          // if obj a ctor'd ptr but not alloc'd, still assign dangling ptr to NULL prior any CTOR's
+          } else if(objects[total_objects-1].is_class_pointer) {
+            sprintf(&NEW_FILE[j], " %s=NULL;", objects[total_objects-1].object_name), j = strlen(NEW_FILE);
+            objects[total_objects-1].is_dangling_ctord_ptr = true;
           }
           // only apply default values if either a non-ptr or an allocated ptr
           if(!objects[total_objects-1].is_class_pointer || objects[total_objects-1].is_alloced_class_pointer) {
             if(objects[total_objects-1].is_class_array)        // object = array, use macro init
               sprintf(&NEW_FILE[j], " DC__%s_ARR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
-            else if(objects[total_objects-1].is_class_pointer) // object != array, so init via its class' global object
-              sprintf(&NEW_FILE[j], " DC__%s_CTOR((*%s));", classes[k].class_name, objects[total_objects-1].object_name);
+            else if(objects[total_objects-1].is_class_pointer) // object != array, so init via its class' global object & init its "2-Be_Dtor'd" flag
+              sprintf(&NEW_FILE[j], " DC__%s_CTOR((*%s));%s->DC_DTR=&DC__NDTR;", 
+                classes[k].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
             else                                               // object != array, so init via its class' global object
               sprintf(&NEW_FILE[j], " DC__%s_CTOR(%s);", classes[k].class_name, objects[total_objects-1].object_name);
             j = strlen(NEW_FILE);
@@ -551,7 +579,7 @@ int main(int argc, char *argv[]) {
 
           // add user-defined ctor invocation w/ initialization values (if present)
           if(user_ctor_invoked) { sprintf(&NEW_FILE[j], " %s", user_ctor); j = strlen(NEW_FILE); }
-          add_object_dtor(&file_contents[i]); // splice in object's class dtor at the end of the current scope
+          add_object_dtor(&file_contents[i], false, false); // splice in object's class dtor at the end of the current scope
 
           // if an obj ptr allocing memory, close the "if != null" braced-condition
           if(objects[total_objects-1].is_alloced_class_pointer) NEW_FILE[j++] = '}';
@@ -1081,6 +1109,74 @@ void account_for_string_char_scopes(bool *in_a_string, bool *in_a_char, bool *in
 }
 
 /******************************************************************************
+* DUMMY CTOR OBJECT INVOCATION CHAIN PARSER
+******************************************************************************/
+
+// given "read" ptr @ 1st letter of dummy ctor's class name, fills the "invoking CHAIN"
+// string, assigns whether or not the invoking NAME is an object ptr, & assigns whether object being redefined
+// (thus not declared).
+void get_dummy_ctor_invoking_object_chain(char *read, char *invoking_chain, int class_idx, bool *invoked_by_ptr, bool *is_redefined) {
+  // suppose object o1 (of class c1) contains object o2 (of class c2). 
+  // Initializing "o2" w/ its class' dummy ctor "c2()": "o1.o2 = c2();"
+  // INVOKING CHAIN: "o1.o2" -- INVOKING NAME:  "o2"
+  bool in_a_string = false, in_a_char = false, in_token_scope = *is_redefined = true; // *is_redefined becomes false if declaration found
+  int in_array_scope = 0;
+  char *p = read - 1; // 1 position directly behind dummy ctor invocation class name
+  char *q = invoking_chain, *invocation_end, *scout;
+  char invoking_name[300], *last_member_invocation_punctuation = NULL;
+  FLOOD_ZEROS(invoking_name, 300);
+  // move to the beginning of the invoking object/chain
+  while(*p != '=') --p;         // move to '='
+  --p;                          // move 1 behind '='
+  while(IS_WHITESPACE(*p)) --p; // move to 1st position in invocation chain
+  invocation_end = p + 1;       // 1 past the end
+  while(!in_token_scope || VARCHAR(*p) || !no_overlap(*p, " \t.]*&") || (*p=='>'&&*(p-1)=='-')) {
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, p);
+    if(last_member_invocation_punctuation != NULL && (*p == '.' || *p == '>')) // save the 1st invocation punct encountered
+      last_member_invocation_punctuation = p;
+    if(in_token_scope && *p == ']') { // skip array subscript contents
+      in_array_scope = 1, --p;
+      while(in_array_scope > 1) {     // ends w/ "p" 1 position behind the opening '['
+        account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, p);
+        if(in_token_scope && *p == ']')      ++in_array_scope;
+        else if(in_token_scope && *p == '[') --in_array_scope;
+        --p;
+      }
+    } else if(*p == ' ' || *p == '\t') {
+      // at a non-'\n' whitespace, confirm not preceded by a letter or '_' ,
+      // as this indicates possible declaration v.s. spacing btwn puncts, ie '[]', '->', etc.
+      scout = p - 1;
+      while(IS_WHITESPACE(*scout)) --scout;
+      if(VARCHAR(*scout)) {             // check if a declaration (ie NOT a redefinition)
+        while(VARCHAR(*scout)) --scout; // move to the just prior the preceding word (or class name if declaration)
+        ++scout;                        // move to first letter of the preceding word 
+        *is_redefined = !is_at_substring(scout, classes[class_idx].class_name);
+        break;
+      }
+    }
+    --p;
+  }
+  // copy the invoking object/chain
+  while(IS_WHITESPACE(*p)) ++p;           // skip to the front of the invoker's name
+  while(p != invocation_end) *q++ = *p++; // copy invoker name
+  *q = '\0';
+  // determine if invoked by ptr object (get invoker name & search for ptr member status in "objects" struct array)
+  if(last_member_invocation_punctuation != NULL) {
+    q = invoking_name;
+    ++last_member_invocation_punctuation; // move 1 position past the 1st (going backwards) invocation punct found
+    while(last_member_invocation_punctuation != invocation_end)
+      *q++ = *last_member_invocation_punctuation++; // copy invoking object's name (NOT the entire chain)
+    *q = '\0';
+  } else strcpy(invoking_name, invoking_chain);
+
+  for(int i = 0; i < total_objects; ++i)
+    if(strcmp(objects[i].object_name, invoking_name) == 0 && strcmp(objects[i].class_name, classes[class_idx].class_name) == 0) {
+      *invoked_by_ptr = objects[i].is_class_pointer;
+      return;
+    }
+}
+
+/******************************************************************************
 * OBJECT CONSTRUCTION FUNCTIONS
 ******************************************************************************/
 
@@ -1096,15 +1192,16 @@ bool is_a_dummy_ctor(char *member_value) {
 // given a class index, returns an initialization brace for it's member values
 void mk_initialization_brace(char brace[], int class_index) {
   char *p = brace;
-  *p++ = '{';
-  for(int j = 0; j < classes[class_index].total_members; ++j) {
+  strcpy(p, "{&DC__NDTR,");
+  p += strlen(p);
+  for(int j = 1; j < classes[class_index].total_members; ++j) { // 1 not 0 to skip over dflt included "object has been dtor'd flag" member
     if(classes[class_index].member_values[j][0] == 0) { // empty value
       // if struct's member (struct inner members' name = value = 0), skip
       if(classes[class_index].member_names[j][0] == 0) continue;
-      else if(classes[class_index].member_is_array[j] || (j > 0 && classes[class_index].member_names[j-1][0] == 0)
+      else if(classes[class_index].member_is_array[j] || (j > 1 && classes[class_index].member_names[j-1][0] == 0)
         || (classes[class_index].member_object_class_name[j][0] != 0 && !classes[class_index].member_is_pointer[j]))
           sprintf(p, "{0},"); // wrap empty (non-ptr) array/object/struct value in braces
-      else if((j > 0 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
+      else if((j > 1 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
         sprintf(p, "0,"); 
     } else {
       if(is_a_dummy_ctor(classes[class_index].member_values[j])) // prefix dummy ctor names as needed
@@ -1459,8 +1556,8 @@ void mk_dtor_array_macro(char dtor_array_macro[], char *class_name) {
   // sprintf loop to iterate over object array's individual objects to be dtor'd
   sprintf(dtor_array_macro, "#define DC__%s_UDTOR_ARR(DC_ARR) ({\\\n\
   for(int DC__%s_UDTOR_IDX=0;DC__%s_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));\
-++DC__%s_UDTOR_IDX)\\\n\t\tDC__NOT_%s_(&DC_ARR[DC__%s_UDTOR_IDX]);\\\n})",
-  class_name, class_name, class_name, class_name, class_name, class_name);
+++DC__%s_UDTOR_IDX)\\\n\t\tif(DC_ARR[DC__%s_UDTOR_IDX].DC_DTR){DC__NOT_%s_(&DC_ARR[DC__%s_UDTOR_IDX]);DC_ARR[DC__%s_UDTOR_IDX].DC_DTR=NULL;}\\\n})",
+  class_name, class_name, class_name, class_name, class_name, class_name, class_name, class_name);
 }
 
 /******************************************************************************
@@ -1468,14 +1565,14 @@ void mk_dtor_array_macro(char dtor_array_macro[], char *class_name) {
 ******************************************************************************/
 
 // shifts up buffer to "splice_here"'s position in order to splice in a dtor
-int shiftSplice_dtor_in_buffer(char *dtor, char *splice_here) {
+int shiftSplice_dtor_in_buffer(char *dtor, char *splice_here, bool redefined) {
   // check whether object already dtored (prevents redundant dtors,
-  // generally occurs when user explicitely invokes a dtor then declass.c 
+  // generally occurs when user explicitly invokes a dtor then declass.c 
   // to splice in one at the end of the scope)
   int current_scope = 1;
   char *check_ifdef_already = splice_here;
   bool in_a_string = false, in_a_char = false, in_token_scope = true;
-  while(current_scope > 0) {
+  while(current_scope > 0 && !redefined) { // doesn't matter if dtor already in scope if object newly redefined
     account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, check_ifdef_already);
     if(in_token_scope) {
       if(*check_ifdef_already == '{')      --current_scope;
@@ -1489,6 +1586,8 @@ int shiftSplice_dtor_in_buffer(char *dtor, char *splice_here) {
     }
     --check_ifdef_already;
   }
+  // if a redundant/duplicate DTOR, return 1 to get past '}' or 'r'eturn
+  if(is_at_substring(splice_here - strlen(dtor), dtor)) return 1; 
 
   // splice in dtor if not already defined in scope at the current position
   char temp[MAX_FILESIZE];
@@ -1542,7 +1641,7 @@ bool unique_dtor_condition(char *returnFrom, char *dtor_condition) {
 }
 
 // checks for "?:" conditional returning 2 different objects to determine which (if any) to dtor
-int one_line_conditional(char *cond) {
+int one_line_conditional(char *cond, bool redefined) {
   char *splice_here = cond;
   int shift_total = 0;
   while(VARCHAR(*cond)) ++cond; // skip "return"
@@ -1580,7 +1679,7 @@ int one_line_conditional(char *cond) {
       else sprintf(if_dtor, "if(!(%s)){DC__NOT_%s_(&%s);}", 
             condition, objects[if_idx].class_name, objects[if_idx].object_name);
       if(unique_dtor_condition(splice_here, if_dtor)) { // only splice in dtor conditional if not done so already
-        shift_total += (shiftSplice_dtor_in_buffer(if_dtor, splice_here) - 1);
+        shift_total += (shiftSplice_dtor_in_buffer(if_dtor, splice_here, redefined) - 1);
         splice_here += shift_total;
       }
     }
@@ -1594,7 +1693,7 @@ int one_line_conditional(char *cond) {
       else sprintf(else_dtor, "if(%s){DC__NOT_%s_(&%s);}", 
             condition, objects[else_idx].class_name, objects[else_idx].object_name);
       if(unique_dtor_condition(splice_here, else_dtor)) // only splice in dtor conditional if not done so already
-        shift_total += (shiftSplice_dtor_in_buffer(else_dtor, splice_here) - 1);
+        shift_total += (shiftSplice_dtor_in_buffer(else_dtor, splice_here, redefined) - 1);
     }
   }
   return shift_total;
@@ -1610,9 +1709,15 @@ int return_then_immediate_exit(char *immediate_exit) {
 }
 
 // splices object dtor (once object created) into buffer being READ from (picked up later on)
-void add_object_dtor(char *splice_here) {
-  if(!objects[total_objects-1].class_has_dtor || objects[total_objects-1].is_immortal) return;
+void add_object_dtor(char *splice_here, bool object_being_assigned, bool redefined) {
+  if(!objects[total_objects-1].class_has_dtor) return;
   bool in_a_string = false, in_a_char = false, in_token_scope = true;
+  // immortal objects can only be explicitly dtor'd by user
+  bool immortal_object = objects[total_objects-1].is_immortal;
+  bool object_pointer = objects[total_objects-1].is_class_pointer;
+  bool object_alloced_ptr = objects[total_objects-1].is_alloced_class_pointer;
+  bool object_dangling_ctord_ptr = objects[total_objects-1].is_dangling_ctord_ptr;
+  bool object_array = objects[total_objects-1].is_class_array;
   int in_scope = 0;
   char dtor[1000];
   FLOOD_ZEROS(dtor, 1000);
@@ -1626,18 +1731,30 @@ void add_object_dtor(char *splice_here) {
     ++splice_here;
   }
   // splice in flag for whether object has been destroyed or not
-  sprintf(dtor_flag, " int DC_%s=0;", objects[total_objects-1].object_name);
-  splice_here += shiftSplice_dtor_in_buffer(dtor_flag, splice_here);
+  // >> ALLOCATED & ALL CTOR'D (ALLOC'D OR OTHERWISE) PTRS ALREADY FLAGGED IN MIDDLE OF "MAIN()" & NEAR BOT OF "PARSE_CLASS()"
+  // >> ASSIGNED PTRS NOT FLAGGED, AS THEIR FLAG BECOMES NULL WHEN THEIR POINTED TO OBJ'S FLAG DOES (ctor'd ptrs flagged after user ctor)
+  //    IE: className *obj2 = &obj1; // "obj2" NOT INITIALLY "2B-DTOR" FLAGGED, AS WILL BE DTOR'D REGARDLESS IF NOT NULL @ END OF ITS SCOPE
+  // >> Thus ONLY flag non-allocated, non-assigned, & non-ctor'd ptrs here as initially being NULL, 
+  //    & flag non-ctor'd ptrs' dflt "DC_DTR" member after being ctor'd (if they aren't NULL)
+  if(!redefined && object_pointer && !object_alloced_ptr && !object_being_assigned && !object_dangling_ctord_ptr) {
+    sprintf(dtor_flag, " %s=NULL;", objects[total_objects-1].object_name);
+  // if a ptr thats ctord but not allocated (allocated version of this taken care of in middle of "main()" & near bot of "parse_class()"")
+  } else if(!redefined && object_pointer && object_dangling_ctord_ptr) {
+    sprintf(dtor_flag, " if(%s){%s->DC_DTR=&DC__NDTR;}", objects[total_objects-1].object_name, objects[total_objects-1].object_name);
+  // non-array && non-ptr
+  } else if(!redefined && !object_array && !object_pointer) {
+    sprintf(dtor_flag, " %s.DC_DTR=&DC__NDTR;", objects[total_objects-1].object_name);
+  }
+  splice_here += shiftSplice_dtor_in_buffer(dtor_flag, splice_here, redefined);
 
-  // determine which type of destructor to splice in (single or array)
-  if(objects[total_objects-1].is_class_array)
-    sprintf(dtor, "if(!DC_%s){DC__%s_UDTOR_ARR(%s);DC_%s=1;}\n", objects[total_objects-1].object_name,
-      objects[total_objects-1].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
-  else if(objects[total_objects-1].is_class_pointer)
-    sprintf(dtor, "if(!DC_%s){DC__NOT_%s_(%s);DC_%s=1;}\n", objects[total_objects-1].object_name,
+  // determine which type of destructor to splice in (single, ptr, or array (array's indiv cells have their flags checked in the macro))
+  if(object_array)
+    sprintf(dtor, "DC__%s_UDTOR_ARR(%s);\n", objects[total_objects-1].class_name, objects[total_objects-1].object_name);
+  else if(object_pointer) // "dangling" ptrs can't access members, thus dtors the entire ptr as NULL
+    sprintf(dtor, "if(%s&&%s->DC_DTR){DC__NOT_%s_(%s);%s=NULL;}\n", objects[total_objects-1].object_name, objects[total_objects-1].object_name,
       objects[total_objects-1].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
   else 
-    sprintf(dtor, "if(!DC_%s){DC__NOT_%s_(&%s);DC_%s=1;}\n", objects[total_objects-1].object_name,
+    sprintf(dtor, "if(%s.DC_DTR){DC__NOT_%s_(&%s);%s.DC_DTR=NULL;}\n", objects[total_objects-1].object_name,
       objects[total_objects-1].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
 
   // find where current scope ends
@@ -1649,13 +1766,13 @@ void add_object_dtor(char *splice_here) {
       else if(*splice_here == '}') {
         --in_scope;
         if(in_scope < 0) {
-          shiftSplice_dtor_in_buffer(dtor, splice_here);
+          if(!immortal_object) shiftSplice_dtor_in_buffer(dtor, splice_here, redefined);
           return;
         }
-      } else if(is_at_substring(splice_here,"return") 
+      } else if(is_at_substring(splice_here,"return") && !immortal_object
         && !VARCHAR(*(splice_here-1)) && !VARCHAR(*(splice_here+strlen("return")))) {
         // if !*DTOR_RETURN, splice in dtors as needed if return case: "return (condition) ? object1 : object 2;"
-        int one_line_cond = (*DTOR_RETURN) ? 0 : one_line_conditional(splice_here);
+        int one_line_cond = (*DTOR_RETURN) ? 0 : one_line_conditional(splice_here, redefined);
         if(one_line_cond > 0) {
           splice_here += one_line_cond;
           int immediate_exit = return_then_immediate_exit(splice_here);
@@ -1671,20 +1788,20 @@ void add_object_dtor(char *splice_here) {
           continue; 
         } 
         // splice in DTOR prior to "return", NOT changing scope status
-        splice_here += shiftSplice_dtor_in_buffer(dtor, splice_here);
+        splice_here += shiftSplice_dtor_in_buffer(dtor, splice_here, redefined);
         // don't add a redundant dtor prior a '}' brace immediately following a "return"
         int immediate_exit = return_then_immediate_exit(splice_here);
         if(immediate_exit > 0) { --in_scope; if(in_scope < 0) return; splice_here += immediate_exit; }
-      } else if(*splice_here == '~') { // check is user explicitely invoked destructor, ie: "~objName();"
+      } else if(*splice_here == '~') { // check is user explicitly invoked destructor, ie: "~objName();"
         if(is_at_substring(splice_here + 1, objects[total_objects-1].object_name)
           && !VARCHAR(*(splice_here + 1 + strlen(objects[total_objects-1].object_name)))) { // user destroyed obj
           char *whiteout = splice_here;
           while(*whiteout != '\0' && *whiteout != ';' && *whiteout != ':')                  // whitespace dtor invocation
             *whiteout++ = ' ';
           if(*whiteout == ';') *whiteout = ' '; // whitespace last ';' (not ':' if in "?:" conditional)
-          splice_here += shiftSplice_dtor_in_buffer(dtor, splice_here);
+          splice_here += shiftSplice_dtor_in_buffer(dtor, splice_here, redefined);
         }
-      }
+      } else if(is_at_substring(splice_here, dtor) && in_scope == 0) return; // no need to dtor if already in EXACT same scope as declaration
     }
     ++splice_here;
   }
@@ -2079,6 +2196,21 @@ bool store_object_info(char *s, int total_classes_increment, bool *dummy_ctor) {
 /******************************************************************************
 * PARSE CLASS HELPER FUNCTIONS
 ******************************************************************************/
+
+// stores a new class instance's default stats in the global "classes" struct
+void initialize_new_class_default_properties(char *class_name) {
+  strcpy(classes[total_classes].class_name, class_name);
+  classes[total_classes].total_methods = 0, classes[total_classes].total_members = 1;
+  classes[total_classes].total_uctors = 0;
+  classes[total_classes].class_has_alloc = false, classes[total_classes].class_has_dtor = false;
+  classes[total_classes].class_has_ctor = false, classes[total_classes].class_has_ctor_args = false;
+  classes[total_classes].member_value_user_ctor[0][0] = 0, classes[total_classes].member_value_user_ctor[0][1] = '\0';
+  classes[total_classes].member_object_class_name[0][0] = 0, classes[total_classes].member_object_class_name[0][1] = '\0';
+  classes[total_classes].member_is_immortal[0] = classes[total_classes].member_value_is_alloc[0] = false;
+  classes[total_classes].member_is_array[0] = false;
+  classes[total_classes].member_is_pointer[0] = true;
+  strcpy(classes[total_classes].member_names[0], "object_has_been_destroyed_flag");
+}
 
 // returns whether struct is definition (true) or variable declaration (false)
 bool is_struct_definition(char *end) {
@@ -2537,16 +2669,17 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   FLOOD_ZEROS(struct_buff, MAX_MEMBER_BYTES_PER_CLASS);
   FLOOD_ZEROS(class_name, 75);
   get_class_name(class_instance, class_name);
-  sprintf(struct_buff, "typedef struct DC_%s {", class_name);
+  sprintf(struct_buff, "typedef struct DC_%s {\n\tint *DC_DTR;", class_name);
   struct_buff_idx = &struct_buff[strlen(struct_buff)]; // points to '\0'
   method_buff_idx = method_buff;
 
-  // store class info in global struct
-  strcpy(classes[total_classes].class_name, class_name);
-  classes[total_classes].total_methods = 0, classes[total_classes].total_members = 0;
-  classes[total_classes].total_uctors = 0;
-  classes[total_classes].class_has_alloc = false, classes[total_classes].class_has_dtor = false;
-  classes[total_classes].class_has_ctor = false, classes[total_classes].class_has_ctor_args = false;
+  // store dflt class info in the global "classes" struct
+  initialize_new_class_default_properties(class_name);
+
+  // dummy ctor detection variables
+  char dummy_ctor_invoking_obj_chain[300];
+  bool dummy_ctor_ptr_invoked = false, dummy_ctor_invoker_redefined = false;
+  int dummy_ctor_len;
 
   // # of class or comment chars
   int class_size = 0, class_comment_size, blank_line_size;
@@ -2555,7 +2688,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   char *start = class_instance, *end, *start_of_line;
   int in_class_scope = 1, in_method_scope;
   bool in_a_string, in_a_char, in_token_scope;
-  while(*start++ != '{') class_size++;
+  while(*start++ != '{') ++class_size;
   end = start;
 
   // copy members to struct_buff & methods to method_buff
@@ -2569,7 +2702,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
     // within the struct's scope and thus NOT members of the outer class
     // NOTE: UNIONS & STRUCTS HANDLED IDENTICALLY!
     if((is_at_substring(end, "struct") || is_at_substring(end, "union")) && is_struct_definition(end)) {
-      while(*end != '\0' && *(end - 1) != '{') *struct_buff_idx++ = *end++, class_size++;
+      while(*end != '\0' && *(end - 1) != '{') *struct_buff_idx++ = *end++, ++class_size;
       int in_struct_scope = 1;
       while(*end != '\0' && in_struct_scope > 0) {
         if(*end == '{') in_struct_scope++;
@@ -2584,7 +2717,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
           #undef init_struct_members
           classes[total_classes].total_members += 1;
         }
-        *struct_buff_idx++ = *end++, class_size++;
+        *struct_buff_idx++ = *end++, ++class_size;
       }
     }
 
@@ -2635,14 +2768,14 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
       // check for fcn ptr => treated as member
       if(*(end + 1) == '*') { 
-        while(*end != '\0' && *end != ')') *struct_buff_idx++ = *end++, class_size++;
+        while(*end != '\0' && *end != ')') *struct_buff_idx++ = *end++, ++class_size;
         if(get_class_member(end, true) == 2) { // copy fcn ptr args BUT NOT INITIALIZING VALUE to struct buff
-          while(*end != '\0' && *end != '=' && *(end - 1) != '\n') *struct_buff_idx++ = *end++, class_size++;
+          while(*end != '\0' && *end != '=' && *(end - 1) != '\n') *struct_buff_idx++ = *end++, ++class_size;
           *struct_buff_idx++ = ';';
           *struct_buff_idx++ = '\n';
-          while(*end != '\0' && *(end - 1) != '\n') end++, class_size++;
+          while(*end != '\0' && *(end - 1) != '\n') end++, ++class_size;
         } else {                              // copy fcn ptr args to struct buff
-          while(*end != '\0' && *(end - 1) != '\n') *struct_buff_idx++ = *end++, class_size++;
+          while(*end != '\0' && *(end - 1) != '\n') *struct_buff_idx++ = *end++, ++class_size;
         }
         start_of_line = end - 1;
         skip_over_blank_lines(end - 1);       // don't copy any blank lines to struct_buff
@@ -2713,14 +2846,14 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
           else if(VARCHAR(*end) && !VARCHAR(*(end + 1)))
             add_method_word(method_words, &word_size, word_start, end);         // add arg word to 'method_words[][]'
         }
-        *method_buff_idx++ = *end++, class_size++;                              // copy method up to ')'
+        *method_buff_idx++ = *end++, ++class_size;                              // copy method up to ')'
       }
 
       // splice in 'this' class ptr as last arg in method
       if(*(end - 1) == '(') sprintf(method_buff_idx, "%s *this", class_name);   // spliced class ptr is single method arg                      
       else                  sprintf(method_buff_idx, ", %s *this", class_name); // spliced class ptr is poly method arg
       method_buff_idx += strlen(method_buff_idx); 
-      while(*end != '\0' && *(end - 1) != '{') *method_buff_idx++ = *end++, class_size++; // copy method up to '{'
+      while(*end != '\0' && *(end - 1) != '{') *method_buff_idx++ = *end++, ++class_size; // copy method up to '{'
 
       // if method = destructor, splice in destructors for contained objects thus far at dtor's start
       if(method_is_dtor)
@@ -2756,12 +2889,26 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
           if(is_at_substring(end, classes[k].class_name) 
             && !VARCHAR(*(end-1)) && !VARCHAR(*(end+strlen(classes[k].class_name)))) {
             if(store_object_info(end, 1, &dummy_ctor)) {
+
               // check if a so-called "dummy ctor" was detected and splice 
               // in the "DC__DUMMY_" class/ctor name's prefix if so
               if(dummy_ctor) {
-                int dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(method_buff_idx, end);
-                method_buff_idx += strlen(method_buff_idx);
-                end += dummy_ctor_len, class_size += dummy_ctor_len;
+                dummy_ctor_ptr_invoked = dummy_ctor_invoker_redefined = false;
+                FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, 300);
+                // flag the object to be destroyed again after being assigned to a dummy ctor (being that they're a new obj instance)
+                get_dummy_ctor_invoking_object_chain(end, dummy_ctor_invoking_obj_chain, k, &dummy_ctor_ptr_invoked, &dummy_ctor_invoker_redefined);
+                dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(method_buff_idx, end);
+                method_buff_idx += strlen(method_buff_idx), end += dummy_ctor_len, class_size += dummy_ctor_len;
+                // As per Documentation's "DECLASS.C CTORS & DTORS" > "FORMATTING" > "(2)", dummy ctors only 
+                // return single obj instances, thus "obj arrays" are presumed to be assigning one of their
+                // individual object "cells" w/in.
+                add_object_dtor(end, true, dummy_ctor_invoker_redefined); 
+                if(dummy_ctor_invoker_redefined) { // Don't add for new declarations
+                  if(dummy_ctor_ptr_invoked)
+                    sprintf(method_buff_idx, ";if(%s){%s->DC_DTR=&DC__NDTR;}", dummy_ctor_invoking_obj_chain, dummy_ctor_invoking_obj_chain);
+                  else sprintf(method_buff_idx, ";%s.DC_DTR=&DC__NDTR", dummy_ctor_invoking_obj_chain);
+                  method_buff_idx += strlen(method_buff_idx);
+                }
                 break;
               }
 
@@ -2769,7 +2916,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
               char *already_assigned = end;
               while(*already_assigned != '\0' && no_overlap(*already_assigned, "\n;,=")) ++already_assigned;
               if(*already_assigned == '=' && !objects[total_objects-1].is_alloced_class_pointer) {
-                add_object_dtor(end);
+                add_object_dtor(end, true, false);
                 break;
               }
 
@@ -2783,18 +2930,22 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
               // implement macro ctor
               while(*end != '\0' && *(end-1) != ';') *method_buff_idx++ = *end++, ++class_size;
               // if an obj ptr allocating memory, confirm obj != NULL prior to passing to ctors & dflt-val assignment
+              objects[total_objects-1].is_dangling_ctord_ptr = false; // ID dangling ptrs (no ctor/'='/alloc) to assign "objPtr=NULL" in "add_object_dtor()"
               if(objects[total_objects-1].is_alloced_class_pointer) {
-                sprintf(method_buff_idx, " if(%s){", objects[total_objects-1].object_name);
-                method_buff_idx += strlen(method_buff_idx);
+                sprintf(method_buff_idx, " if(%s){", objects[total_objects-1].object_name), method_buff_idx += strlen(method_buff_idx);
+              // if obj a ctor'd ptr but not alloc'd, still assign dangling ptr to NULL prior any CTOR's
+              } else if(objects[total_objects-1].is_class_pointer) {
+                sprintf(method_buff_idx, " %s=NULL;", objects[total_objects-1].object_name), method_buff_idx += strlen(method_buff_idx);
+                objects[total_objects-1].is_dangling_ctord_ptr = true;
               }
               // only add dflt vals for non-ptrs or memory-allocated pointers
               if(!objects[total_objects-1].is_class_pointer || objects[total_objects-1].is_alloced_class_pointer) {
                 if(objects[total_objects-1].is_class_array)        // object = array, use array macro init
                   sprintf(method_buff_idx, " DC__%s_ARR(%s);", 
                     classes[k].class_name, objects[total_objects-1].object_name);
-                else if(objects[total_objects-1].is_class_pointer) // object != array, so use single-object macro init
-                  sprintf(method_buff_idx, " DC__%s_CTOR((*%s));", 
-                    classes[k].class_name, objects[total_objects-1].object_name);
+                else if(objects[total_objects-1].is_class_pointer) // object != array & is ptr, so use single-object macro init
+                  sprintf(method_buff_idx, " DC__%s_CTOR((*%s));%s->DC_DTR=&DC__NDTR;", 
+                    classes[k].class_name, objects[total_objects-1].object_name, objects[total_objects-1].object_name);
                 else                                               // object != array, so use single-object macro init
                   sprintf(method_buff_idx, " DC__%s_CTOR(%s);", 
                     classes[k].class_name, objects[total_objects-1].object_name);
@@ -2807,7 +2958,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
               }
               // if an obj ptr allocing memory, close the "if != null" braced-condition
               if(objects[total_objects-1].is_alloced_class_pointer) *method_buff_idx++ = '}';
-              add_object_dtor(end);
+              add_object_dtor(end, false, false);
             }
             break;
           }
@@ -2856,7 +3007,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
             end += local_nested_method_size, class_size += local_nested_method_size;
             method_buff_idx += strlen(method_buff_idx);
           }
-          *method_buff_idx++ = *end++, class_size++;
+          *method_buff_idx++ = *end++, ++class_size;
         }
       }
       if(method_is_ctor) { // return object at the end of user-defined ctors for default assignment
@@ -2865,8 +3016,8 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       }
       start_of_line = end; // start next line after method
     } 
-    *struct_buff_idx++ = *end;
-    end++, class_size++;
+    *struct_buff_idx++ = *end++;
+    ++class_size;
   }
 
   // provide a default destructor/constructor if left undefined by user
@@ -2917,7 +3068,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   sprintf(struct_buff_idx, " %s;", class_name);
   *method_buff_idx = '\0';
 
-  end++, class_size++; // skip '};'
+  ++end, ++class_size; // skip '};'
   if(*(end - 1) == ';') ++end, ++class_size;
 
   // copy the constructor macros, class-converted-to-struct, & spliced-out methods to 'NEW_FILE'
