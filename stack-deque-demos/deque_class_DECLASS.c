@@ -1,5 +1,6 @@
 /* DECLASSIFIED: deque_class.c
  * Email jrandleman@scu.edu or see https://github.com/jrandleman for support */
+int DC__NDTR = 1;
 #define immortal // immortal keyword active
 /****************************** SMRTPTR.H START ******************************/
 // Source: https://github.com/jrandleman/C-Libraries/tree/master/Smart-Pointer
@@ -141,18 +142,19 @@ DC_Deque_(&DC_ARR[DC__Deque_UCTOR_IDX]);\
 /* "Deque" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Deque_UDTOR_ARR(DC_ARR) ({\
   for(int DC__Deque_UDTOR_IDX=0;DC__Deque_UDTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Deque_UDTOR_IDX)\
-		DC__NOT_Deque_(&DC_ARR[DC__Deque_UDTOR_IDX]);\
+		if(DC_ARR[DC__Deque_UDTOR_IDX].DC_DTR){DC__NOT_Deque_(&DC_ARR[DC__Deque_UDTOR_IDX]);DC_ARR[DC__Deque_UDTOR_IDX].DC_DTR=NULL;}\
 })
 
 /* "Deque" CLASS CONVERTED TO STRUCT: */
 typedef struct DC_Deque {
+	int *DC_DTR;
   NODE *head;
   int length;
 
 
 } Deque;
 Deque DC__Deque_DFLT(){
-	Deque this={smrtmalloc(sizeof(NODE)),0,};
+	Deque this={&DC__NDTR,smrtmalloc(sizeof(NODE)),0,};
 	return this;
 }
 
@@ -261,7 +263,7 @@ Deque DC__Deque_DFLT(){
 int main() {
 
 
-  Deque list; DC__Deque_CTOR(list); DC_Deque_(&list); int DC_list=0;
+  Deque list; DC__Deque_CTOR(list); DC_Deque_(&list); list.DC_DTR=&DC__NDTR;
 
 
   DC_Deque_addFirst(8, &list);
@@ -306,6 +308,6 @@ int main() {
   bool dataFound = DC_Deque_findItem(soughtData, &list);
   printf("\nBoolean as to whether data \"%d\" was found: %d\n", soughtData, dataFound);
 
-  if(!DC_list){DC__NOT_Deque_(&list);DC_list=1;}
+  if(list.DC_DTR){DC__NOT_Deque_(&list);list.DC_DTR=NULL;}
 return 0;
 }
