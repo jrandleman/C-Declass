@@ -18,7 +18,7 @@ static void smrtptr_free_all() {
   int i = 0;
   for(; i < SMRTPTR_GC.len; ++i) free(SMRTPTR_GC.ptrs[i]);
   if(SMRTPTR_GC.len > 0) free(SMRTPTR_GC.ptrs);
-  if(SMRTPTR_GC.len > 0) printf("FREED %ld SMART POINTERS!\n", SMRTPTR_GC.len); // optional
+  // if(SMRTPTR_GC.len > 0) printf("FREED %ld SMART POINTERS!\n", SMRTPTR_GC.len); // optional
   SMRTPTR_GC.len = 0;
 }
 // throws invalid allocation errors
@@ -132,9 +132,9 @@ void smrtfree(void *ptr) {
   for(int DC__Student_UCTOR_IDX=0;DC__Student_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_UCTOR_IDX)\
     DC__4_DC_Student_(DC___A1_Student, DC___A2_Student, DC___A3_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
 })
-#define DC__2_DC__Student_UCTOR_ARR(DC_ARR, DC___A1_Student) ({\
+#define DC__3_DC__Student_UCTOR_ARR(DC_ARR, DC___A1_Student, DC___A2_Student) ({\
   for(int DC__Student_UCTOR_IDX=0;DC__Student_UCTOR_IDX<(sizeof(DC_ARR)/sizeof(DC_ARR[0]));++DC__Student_UCTOR_IDX)\
-    DC__2_DC_Student_(DC___A1_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
+    DC__3_DC_Student_(DC___A1_Student, DC___A2_Student, &DC_ARR[DC__Student_UCTOR_IDX]);\
 })
 /* "Student" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */
 #define DC__Student_UDTOR_ARR(DC_ARR) ({\
@@ -169,10 +169,10 @@ Student DC__Student_DFLT(){
 	DC__Student_CTOR(DC__Student__temp);\
 	DC__4_DC_Student_(DC___D1_Student, DC___D2_Student, DC___D3_Student,  &DC__Student__temp);\
 })
-#define DC__1_DC__DUMMY_Student(DC___D1_Student)({\
+#define DC__2_DC__DUMMY_Student(DC___D1_Student, DC___D2_Student)({\
 	Student DC__Student__temp;\
 	DC__Student_CTOR(DC__Student__temp);\
-	DC__2_DC_Student_(DC___D1_Student,  &DC__Student__temp);\
+	DC__3_DC_Student_(DC___D1_Student, DC___D2_Student,  &DC__Student__temp);\
 })
 
 /* "Student" CLASS METHODS SPLICED OUT: */
@@ -197,8 +197,10 @@ Student DC__Student_DFLT(){
     DC_Student_assignGpa(gpa, this);
   	return *this;
 	}
-  Student DC__2_DC_Student_(char *userName, Student *this) {
+  Student DC__3_DC_Student_(float gpa, char *userName                             , Student *this) {
     DC_Student_assignName(userName, this);
+    DC_Student_assignId(1000000, this);
+    DC_Student_assignGpa(gpa, this);
   	return *this;
 	}
   void DC__NOT_Student_(Student *this) {
@@ -418,10 +420,16 @@ int main() {
   DC_Student_show(&koenR);
 
 
-  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
-  Student luluR; DC__Student_CTOR(luluR); DC__2_DC_Student_("Louis Randleman", &luluR); luluR.DC_DTR=&DC__NDTR;
+  printf("\nWorking with an single \"Student\" object initialized via its overloaded constructor:\n");
+  Student luluR; DC__Student_CTOR(luluR); DC__3_DC_Student_(5.0, "Louis Randleman", &luluR); luluR.DC_DTR=&DC__NDTR;
   printf("\t");
   DC_Student_show(&luluR);
+
+
+  printf("\nWorking with an \"Student\" object constructed via an overloaded ctor w/ a default \"name\" arg value:\n");
+  Student charmR; DC__Student_CTOR(charmR); DC__3_DC_Student_(5.5,"\"Default Student Name\"", &charmR); charmR.DC_DTR=&DC__NDTR;
+  printf("\t");
+  DC_Student_show(&charmR);
 
 
   printf("\nUsing the \"dummy\" constructor:\n");
@@ -544,6 +552,7 @@ int main() {
   if(jordanCR.DC_DTR){DC__NOT_Student_(&jordanCR);jordanCR.DC_DTR=NULL;}
 if(koenR.DC_DTR){DC__NOT_Student_(&koenR);koenR.DC_DTR=NULL;}
 if(luluR.DC_DTR){DC__NOT_Student_(&luluR);luluR.DC_DTR=NULL;}
+if(charmR.DC_DTR){DC__NOT_Student_(&charmR);charmR.DC_DTR=NULL;}
 if(tessaR.DC_DTR){DC__NOT_Student_(&tessaR);tessaR.DC_DTR=NULL;}
 DC__Student_UDTOR_ARR(class);
 DC__Student_UDTOR_ARR(group);
