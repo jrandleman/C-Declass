@@ -1,7 +1,7 @@
 // AUTHOR: JORDAN RANDLEMAN - DECLASSIFIER TO PRE-PREPROCESS .C FILES USING CLASSES
 // Email jrandleman@scu.edu or see https://github.com/jrandleman for support
 /**
- * compile: $ gcc -o declass declass.c
+ * compile: $ gcc -std=c99 -o declass declass.c
  *          $ ./declass yourFile.c 
  *     (OR) $ ./declass -l yourFile.c // optional '-l' shows class details 
  */
@@ -36,6 +36,14 @@
 #define MAX_METHOD_BYTES_PER_CLASS 10001
 #define MAX_WORDS_PER_METHOD 1000
 #define MAX_DEFAULT_VALUE_LENGTH 251
+// max length any single label can have in the parsed file (name of fcn, variable, class, method, arg, etc)
+#define MAX_TOKEN_NAME_LENGTH 150
+// -:- COLA.C MACROS -:-
+#define MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM 5000   // max # of macros & fcns parsed file can have
+#define MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE 100 // max # of COLA's per overloaded fcn/macro name
+#define MAX_LENGTH_PER_ARG 1001    // max # of characters per fcn arg list parsed file can have
+#define MAX_ARGS_PER_FCN 251       // max # args per fcn arg list parsed file can have
+#define BAD_CODE_BUFFER_LENGTH 251 // portion of code shown to user at error
 /*****************************************************************************
  ||^\\ //=\\ //=\ /| |\ /\\  //\ /|==\ /\\ ||==== //^\\ ==== ==== //=\\ /\\ ||
  ||  ))|| || ||   || || ||\\//|| ||=   ||\\|| || |/===\| ||   ||  || || ||\\||
@@ -65,7 +73,7 @@
  *       (*) NOTE:     let "->" denote "can access the members of"          *
  *       (*) IE:       suppose classes c1, c2 & c3: w/ c1 in c2 & c2 in c3. *
  *                     c3 -> c2, and c2 -> c1, BUT NOT c3 -> c1.            *
- *       (*) RATHER:   (1) include a c1 object as a member in c3            *
+ *       (*) RATHER:   (1) include a c1 object as a member in c3, OR:       *
  *                     (2) mk c2 methods invoking c1 methods: c3 interface  *
  *   (9) ONLY BINARY SINGLE-LINE CONDITIONAL ("?:") OBJECT RETURNS:         *
  *       (*) IE NOT:   "return case ? obj : case2 ? obj2 : obj3;"           *
@@ -73,23 +81,42 @@
  *****************************************************************************
  *                       -:- DECLASS.C & SMRTPTR.H -:-                      *
  *    SMRTPTR.H LIBRARY IS DEFAULT INCLUDED, W/ IMPROVED MALLOC, CALLOC,    *
- *    REALLOC, & FREE FUNCTIONS AS WELL AS GARBAGE COLLECTION               *
- *      (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"    *
+ *    REALLOC, FREE, & ASSERT FUNCTIONS AS WELL AS GARBAGE COLLECTION       *
+ *      (*) "smrtptr.h" fcns same as stdlib/assert's all prefixed w/ "smrt" *
  *****************************************************************************
  *                        -:- DECLASS.C & COLA.C -:-                        *
- *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER IS DFLT APPLIED TO CONVERTED *
- *    FILES PRIOR COMPILING - ALLOWS FCN & MACRO POLYMORPHISM (2+ SHARE THE *
- *    SAME NAME) SO LONG AS THEY TAKE DIFFERENT NUMBERS OF ARGS!            *
- *      (*) thus "CTOR"s CAN be overloaded but "DTOR"s CANNOT               *
- *                         -:- COLA.C 6 CAVEATS -:-                         *
- *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
- *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
+ *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER DFLT APPLIED PRIOR COMPILING *
+ *      => ALLOWS FCN/MACRO POLYMORPHISM (2+ W/ SAME NAME) SO LONG AS THEY  *
+ *         TAKE DIFFERENT NUMBERS OF ARGS AS PARAMETERS!                    *
+ *           (*) thus "CTOR"s CAN be overloaded but "DTOR"s CANNOT          *
+ *      => ALSO ENABLES DEFAULT FCN/METHOD ARG VALUES!                      *
+ *      => "ODV" GUIDLINE BELOW HELPS AVOID OVERLOAD AMBIGUITY W/ DFLT VALS *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  *
+ *                         -:- COLA.C 9 CAVEATS -:-                         *
+ *   (*) NOTE: a "COLA INSTANCE" = a fcn/macro overload OR fcn w/ dflt vals *
+ *   (0) NO VARIADIC COLA INSTANCES                                         *
+ *   (1) NO COLA INSTANCES W/IN CONDITIONAL PREPROCESSOR DIRECTIVES         *
  *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
- *   (2) NO FCN PTRS POINTING TO OVERLOADED FCNS                            *
+ *   (2) NO FCN PTRS POINTING TO COLA INSTANCES                             *
  *       (*) can't determine overloaded arg # from only overloaded fcn name *
- *   (3) NO REDEFINING OVERLOADED NAME AS A DIFFERENT VAR NAME IN ANY SCOPE *
+ *   (3) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
  *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
- *   (5) ONLY GLOBALLY/CLASS-MEMBER DEFINED FCNS/MACROS CAN BE OVERLOADED   *
+ *   (5) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
+ *   (6) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
+ *   (7) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
+ *       (*) args w/ default values must always by last in a fcn's arg list *
+ *   (8) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
+ *       (*) if a fcn proto has default vals but its defn doesn't (or vise  *
+ *           versa) fcn will be treated as if both had the default vals     *
+ *       (*) if a fcn proto has DIFFERENT default vals from its defn, the   *
+ *           fcn's proto default vals are treated as the only default vals  *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  *
+ *  -:- ODV GUIDELINE TO COMBINE (O)VERLOADS W/ (D)EFAULT ARG (V)ALUES -:-  *
+ * >> overload definitions must satisfy 1 of the following:                 *
+ *    (1) an overload's # of non-dflt args must exceed the # of cumulative  *
+ *        args (both dflt & not) of all other overloaded instances          *
+ *    (2) an overload's # of cumulative args (both dflt & not) must be less *
+ *        than the # of non-dflt args of all other overloaded instances     *
  *****************************************************************************
  *                     -:- DECLASS.C CTORS & DTORS -:-                      *
  *   FORMATTING:                                                            *
@@ -143,13 +170,16 @@
  *   (2) IMMORTAL OBJECTS CAN ONLY BE DTOR'D IF EXPLICITLY BY THE USER, IE: *
  *       (*) immortal object "oName" only destroyed if "~oName();" invoked  *
  *****************************************************************************
- *                    -:- DECLASS.C 3 CMD LINE FLAGS -:-                    *
+ *                    -:- DECLASS.C 4 CMD LINE FLAGS -:-                    *
  *   (0) SHOW CLASS-OBJECT & COLA-OVERLOADING DATA:                         *
  *         (*) "-l": $ ./declass -l yourFile.c                              *
  *   (1) SAVE TEMP FILE MADE PRIOR TO PASSING CONVERTED FILE TO COLA.C:     *
  *         (*) "-save-temps": $ ./declass -save-temps yourFile.c            *
  *   (2) DON'T AUTO-COMPILE CONVERTED FILE (like #define DECLASS_NCOMPILE)  *
  *         (*) "-no-compile": $ ./declass -no-compile yourFile.c            *
+ *   (3) MAKE FATAL ERRORS ASK USER WHETHER TO QUIT (RATHER THAN AUTOMATIC) *
+ *         (*) DISCOURAGED last-resort way 2 debug, but errors 4 a reason!  *
+ *         (*) "-mortal-errors": $ ./declass -mortal-errors yourFile.c      *
  *   ->> Combine any of the above, so long as "yourFile.c" is the last arg  *
  *         (*) VALID:   $ ./declass -no-compile -l -save-temps yourFile.c   *
  *         (*) INVALID: $ ./declass -no-compile -l yourFile.c -save-temps   *
@@ -165,7 +195,7 @@
  *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *     (7) "#define DECLASS_NCOMPILE"     => ONLY CONVERT DON'T GCC COMPILE *
  *     (8) "#define DECLASS_NC11"         => GCC COMPILE W/O "-std=c11"     *
- *     (9) "#define DECLASS_NCOLA"        => DISABLE COLA.C OVERLOAD PARSER *
+ *     (9) "#define DECLASS_NCOLA"        => DISABLE COLA.C OVERLOADS/DFLTS *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
@@ -178,25 +208,25 @@
 
 // stores class names, & their associated methods
 struct class_info { 
-  char class_name[75], method_names[MAX_METHODS_PER_CLASS][75]; 
-  char member_names[MAX_MEMBERS_PER_CLASS][75], member_values[MAX_MEMBERS_PER_CLASS][MAX_DEFAULT_VALUE_LENGTH];
-  int  class_uctor_arg_lengths[MAX_METHODS_PER_CLASS];      // # of args per user-defined ctor (helps create unique dummy/array ctors per COLA overload)
-  bool class_has_ctor, class_has_ctor_args;                 // class has user-defined ctor to invoke when assigning default
-  bool class_has_dtor;                                      // class has user-defined dtor to invoke when leaving obj scope
-  bool class_has_alloc;                                     // class has 1+ member of: malloc/calloc/smrtmalloc/smrtcalloc
-  bool member_is_array[MAX_MEMBERS_PER_CLASS];              // init empty arrays as {0}
-  bool member_is_pointer[MAX_MEMBERS_PER_CLASS];            // init pointers as 0 (same as NULL)
-  bool member_value_is_alloc[MAX_MEMBERS_PER_CLASS];        // track alloc'd members for '-l' awareness & "sizeof()" arg
-  bool member_is_immortal[MAX_MEMBERS_PER_CLASS];           // track "immortal" members: never trigger user-def'd dtors (unless explicitly invoked)
-  char member_value_user_ctor[MAX_MEMBERS_PER_CLASS][350];  // track user-define ctor arr vals (spliced out for DFLT fcn)
-  char member_object_class_name[MAX_MEMBERS_PER_CLASS][75]; // used to intialize contained class objects
+  char class_name[MAX_TOKEN_NAME_LENGTH], method_names[MAX_METHODS_PER_CLASS][MAX_TOKEN_NAME_LENGTH]; 
+  char member_names[MAX_MEMBERS_PER_CLASS][MAX_TOKEN_NAME_LENGTH], member_values[MAX_MEMBERS_PER_CLASS][MAX_DEFAULT_VALUE_LENGTH];
+  int  class_uctor_arg_lengths[MAX_METHODS_PER_CLASS]; // # of args per user-defined ctor (helps create unique dummy/array ctors per COLA overload)
+  bool class_has_ctor, class_has_ctor_args;            // class has user-defined ctor to invoke when assigning default
+  bool class_has_dtor;                                 // class has user-defined dtor to invoke when leaving obj scope
+  bool class_has_alloc;                                // class has 1+ member of: malloc/calloc/smrtmalloc/smrtcalloc
+  bool member_is_array[MAX_MEMBERS_PER_CLASS];         // init empty arrays as {0}
+  bool member_is_pointer[MAX_MEMBERS_PER_CLASS];       // init pointers as 0 (same as NULL)
+  bool member_value_is_alloc[MAX_MEMBERS_PER_CLASS];   // track alloc'd members for '-l' awareness & "sizeof()" arg
+  bool member_is_immortal[MAX_MEMBERS_PER_CLASS];      // track "immortal" members: never trigger user-def'd dtors (unless explicitly invoked)
+  char member_value_user_ctor[MAX_MEMBERS_PER_CLASS][MAX_TOKEN_NAME_LENGTH];   // track user-define ctor arr vals (spliced out for DFLT fcn)
+  char member_object_class_name[MAX_MEMBERS_PER_CLASS][MAX_TOKEN_NAME_LENGTH]; // used to intialize contained class objects
   int total_methods, total_members, total_uctors;
 } classes[MAX_CLASSES];
 int total_classes = 0;
 
 // stores object names, & their associated class
 struct objNames { 
-  char class_name[75], object_name[75]; 
+  char class_name[MAX_TOKEN_NAME_LENGTH], object_name[MAX_TOKEN_NAME_LENGTH]; 
   bool is_class_pointer, is_alloced_class_pointer, is_class_array;
   bool class_has_dtor, is_immortal, is_dangling_ctord_ptr;
 } objects[MAX_OBJECTS];
@@ -227,11 +257,12 @@ bool NO_SMRTASSERT       = false;          // deactivates all "smrtassert()" sta
 bool NO_C11_COMPILE_FLAG = false;          // compiles declassified file w/o "-std=c11"             (default false)
 bool NO_COMPILE          = false;          // declass.c declassifies but DOESN'T compile given file (default false)
 bool NO_COLA_PARSER      = false;          // prevents passing converted file to cola.c overloader  (default false)
+bool MORTAL_ERRORS       = false;          // fatal errors will ask user whether to quit/continue   (default false)
 
 /* NOTE: IT IS ASSUMED THAT USER-DEFINED ALLOCATION FCNS RETURN NULL OR END PROGRAM UPON ALLOC FAILURE */
 int TOTAL_ALLOC_FCNS = 4; // increases if user defines their own allocation fcns
 // user can add up to 100 of their own alloc fcns
-char ALLOC_FCNS[104][200] = { "malloc", "calloc", "smrtmalloc", "smrtcalloc" };
+char ALLOC_FCNS[104][MAX_TOKEN_NAME_LENGTH * 2] = { "malloc", "calloc", "smrtmalloc", "smrtcalloc" };
 
 // basic c type keywords:
 #define TOTAL_TYPES 14
@@ -249,17 +280,21 @@ bool COLA_C_main_execution(bool, char*);
 bool at_smrtassert_or_compile_or_cola_macro_flag(char*);
 void add_braces(char []);
 /* MESSAGE FUNCTIONS */
+void get_invalid_code_snippet(const char*, const char*, char []); // defined in COLA.C below
 void process_cmd_flag(char*, bool*, bool*);
 void enable_smrtptr_alerts();
+void confirm_no_reserved_DC_prefix(char*);
 void confirm_valid_file(char*);
-void confirm_command_processor_exists_for_autonomous_compilation();
+void confirm_command_processor_exists_for_autonomous_compilation(int);
 void declass_DECLASSIFIED_ascii_art();
 void declass_ERROR_ascii_art();
 void declass_missing_Cfile_alert();
 void throw_DECLASS_IGNORE_message_and_terminate();
 void show_l_flag_data();
+void ask_user_whether_to_quit_or_continue_declassification();
 void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char [12],int,int);
-void throw_potential_invalid_double_dflt_assignment(char*);
+void throw_potential_invalid_double_dflt_assignment(const char [12], int, char*);
+void throw_fatal_error_dtor_has_args(char*, int, char*);
 /* USER-DEFINED ALLOCATION FUNCTIONS PARSING/REGISTERING FUNCTIONS */
 bool is_an_alloc_fcn(char*);
 void register_user_defined_alloc_fcns(char*);
@@ -295,16 +330,16 @@ int one_line_conditional(char*, bool);
 int return_then_immediate_exit(char*);
 void add_object_dtor(char*, bool, bool);
 /* OBJECT METHOD PARSER */
-int parse_method_invocation(char*, char*, int*, bool, char[][75]);
-void splice_in_prepended_method_name(char*, char*, int, char*, int*, int*, char[][75]);
-void splice_in_prepended_NESTED_method_name(char*, char*, int, char*, int*, char[][75]);
+int parse_method_invocation(char*, char*, int*, bool, char[][MAX_TOKEN_NAME_LENGTH]);
+void splice_in_prepended_method_name(char*, char*, int, char*, int*, int*, char[][MAX_TOKEN_NAME_LENGTH]);
+void splice_in_prepended_NESTED_method_name(char*, char*, int, char*, int*, char[][MAX_TOKEN_NAME_LENGTH]);
 void rmv_excess_buffer_objectChain(char*, char*, char*, char*, char*);
 /* OBJECT METHOD PARSER HELPER FUNCTIONS */
 int is_method_invocation(char*);
 bool invoked_member_is_method(char*, char*, bool);
 void get_invoked_member_name(char*, char*);
-void get_object_name(char*, char*, char*, int, char [][75], bool, bool*);
-int prefix_local_members_and_cpy_method_args(char*, char*, char [][75], int*, char);
+void get_object_name(char*, char*, char*, int, char [][MAX_TOKEN_NAME_LENGTH], bool, bool*);
+int prefix_local_members_and_cpy_method_args(char*, char*, char [][MAX_TOKEN_NAME_LENGTH], int*, char);
 /* STORE OBJECT INFORMATION */
 bool store_object_info(char*, int, bool*);
 /* PARSE CLASS HELPER FUNCTIONS */
@@ -313,20 +348,20 @@ bool is_struct_definition(char*);
 void get_class_name(char*, char*);
 void confirm_only_one_cdtor(char*, char*, bool);
 void confirm_only_valid_cola_overloads(char*);
-int count_class_ctor_args(char*);
+int count_class_cdtor_args(char*);
 void get_prepended_method_name(char*, char*, char*, bool*, bool*);
 int get_initialized_member_value(char*);
 void register_member_class_objects(char*);
 void check_for_alloc_sizeof_arg();
 int get_class_member(char*, bool);
-void add_method_word(char [][75], int*, char*, char*);
+void add_method_word(char [][MAX_TOKEN_NAME_LENGTH], int*, char*, char*);
 /* CONFIRM WHETHER METHOD'S WORD IS A LOCAL CLASS MEMBER */
 bool not_local_var_declaration(char*);
-bool not_in_method_words(char [][75], int, char*);
+bool not_in_method_words(char [][MAX_TOKEN_NAME_LENGTH], int, char*);
 bool not_an_external_invocation(char*);
 void splice_in_this_arrowPtr(char*);
-int parse_local_nested_method(char*, char*, char*, char [][75]);
-bool valid_member(char*, char*, char, char, char [][75], int);
+int parse_local_nested_method(char*, char*, char*, char [][MAX_TOKEN_NAME_LENGTH]);
+bool valid_member(char*, char*, char, char, char [][MAX_TOKEN_NAME_LENGTH], int);
 /* PARSE CLASS */
 int parse_class(char*, char [], int*);
 
@@ -456,7 +491,7 @@ void smrtfree(void *ptr) {\n\
 
 int main(int argc, char *argv[]) {
   // confirm passed .c file in cmd line arg to declass
-  if(argc<2 || argc>5 || (argv[argc-1][strlen(argv[argc-1])-2] != '.' && argv[argc-1][strlen(argv[argc-1])-1] != 'c')) 
+  if(argc<2 || argc>6 || argv[argc-1][strlen(argv[argc-1])-2] != '.' || argv[argc-1][strlen(argv[argc-1])-1] != 'c') 
     declass_missing_Cfile_alert();
   // process cmd line flags: 1) determine if displaying class info at exit: "-l"
   //                         2) determine if not to compile: "-no-compile"
@@ -468,33 +503,34 @@ int main(int argc, char *argv[]) {
 
   // old & new file buffers, as well as filename
   char file_contents[MAX_FILESIZE], NEW_FILE[MAX_FILESIZE];
-  char filename[125], original_filename_executable[125];
+  char filename[MAX_TOKEN_NAME_LENGTH], original_filename_executable[MAX_TOKEN_NAME_LENGTH];
   FLOOD_ZEROS(file_contents, MAX_FILESIZE); FLOOD_ZEROS(NEW_FILE, MAX_FILESIZE);
-  FLOOD_ZEROS(filename, 125); FLOOD_ZEROS(original_filename_executable, 125);
+  FLOOD_ZEROS(filename, MAX_TOKEN_NAME_LENGTH); FLOOD_ZEROS(original_filename_executable, MAX_TOKEN_NAME_LENGTH);
   strcpy(filename, argv[argc-1]);
   confirm_valid_file(filename);
   strcpy(original_filename_executable, filename);
   NEW_EXTENSION(original_filename_executable, ""); // remove ".c" from executable file's name
 
   FSCRAPE(file_contents, filename);
-  char filler_array_argument[MAX_WORDS_PER_METHOD][75];
+  char filler_array_argument[MAX_WORDS_PER_METHOD][MAX_TOKEN_NAME_LENGTH];
   int i = 0, j = 0;
   bool in_a_string = false, in_a_char = false, in_token_scope = true;
   bool found_COLA_overloads = false;
 
-  char dummy_ctor_invoking_obj_chain[300], *read, *write;
+  char dummy_ctor_invoking_obj_chain[MAX_TOKEN_NAME_LENGTH * 2], *read, *write;
   bool dummy_ctor_ptr_invoked, dummy_ctor_invoker_redefined;
   int dummy_ctor_len;
-  FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, 300);
+  FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, MAX_TOKEN_NAME_LENGTH * 2);
 
   // remove commments from program: ensures braces applied properly & reduces size
   whitespace_all_comments(file_contents);
   trim_sequential_spaces(file_contents);
-
+  // confirm user didn't use "DC_" to prefix any token names
+  confirm_no_reserved_DC_prefix(file_contents);
   // wrap braces around single-line "braceless" if, else if, else, while, & for loops
   add_braces(file_contents);
   // simulate as if "#define DECLASS_NCOMPILE" were found if command processor DNE
-  confirm_command_processor_exists_for_autonomous_compilation();
+  confirm_command_processor_exists_for_autonomous_compilation(__LINE__);
   // uncomment smrtptr.h's alerts if user included "#define DECLASS_NOISYSMRTPTR"
   if(*SMRT_PTRS && *NOISY_SMRTPTR) enable_smrtptr_alerts();
 
@@ -517,7 +553,7 @@ int main(int argc, char *argv[]) {
           // in the "DC__DUMMY_" class/ctor name's prefix if so
           if(dummy_ctor) {
             read = &file_contents[i], write = &NEW_FILE[j], dummy_ctor_ptr_invoked = dummy_ctor_invoker_redefined = false;
-            FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, 300);
+            FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, MAX_TOKEN_NAME_LENGTH * 2);
             // flag the object to be destroyed again after being assigned to a dummy ctor (being that they're a new obj instance)
             get_dummy_ctor_invoking_object_chain(read, dummy_ctor_invoking_obj_chain, k, &dummy_ctor_ptr_invoked, &dummy_ctor_invoker_redefined);
             dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(write, read);
@@ -546,8 +582,8 @@ int main(int argc, char *argv[]) {
           }
 
           // determine if object is invoking it's user-defined constructor
-          char *user_ctor_finder = &file_contents[i], user_ctor[500];
-          FLOOD_ZEROS(user_ctor, 500);
+          char *user_ctor_finder = &file_contents[i], user_ctor[1000];
+          FLOOD_ZEROS(user_ctor, 1000);
           bool is_fcn_returning_obj = false;
           bool user_ctor_invoked = get_user_ctor(user_ctor_finder,user_ctor,classes[k].class_name,&is_fcn_returning_obj);
 
@@ -641,7 +677,7 @@ int main(int argc, char *argv[]) {
   // if compiling & cola-overloaded
   if(!NO_COLA_PARSER && !NO_COMPILE) {
     // cola.c creates a new file w/ the original filename + "_DECLASS.c" on success
-    FLOOD_ZEROS(filename, 125);
+    FLOOD_ZEROS(filename, MAX_TOKEN_NAME_LENGTH);
     sprintf(filename, "%s_DECLASS.c", original_filename_executable);
   }
 
@@ -649,8 +685,8 @@ int main(int argc, char *argv[]) {
   if(show_class_info) show_l_flag_data();
 
   // generate compilation cmd
-  char compile_cmd[250];
-  FLOOD_ZEROS(compile_cmd, 250);
+  char compile_cmd[(MAX_TOKEN_NAME_LENGTH * 2) + 10];
+  FLOOD_ZEROS(compile_cmd, (MAX_TOKEN_NAME_LENGTH * 2) + 10);
   if(!NO_COMPILE && NO_C11_COMPILE_FLAG)
     sprintf(compile_cmd, "gcc -o %s %s", original_filename_executable, filename);
   else if(!NO_COMPILE)
@@ -788,8 +824,9 @@ void add_braces(char file_contents[]) {
 * MESSAGE FUNCTIONS
 ******************************************************************************/
 
-// confirm (& adjust the appropriate flags) for possible "-l", "-no-compile", &/or
-// "-save-temps" cmd-line flags (throw error if any other invalid flag found)
+// confirm (& adjust the appropriate flags) for possible "-l", "-no-compile",
+// "-mortal-errors", &/or "-save-temps" cmd-line flags
+// (throws error if any other invalid flag found)
 void process_cmd_flag(char *flag, bool *show_class_info, bool *save_temp_files) {
   if(strcmp(flag, "-l") == 0)
     *show_class_info = true;
@@ -797,6 +834,8 @@ void process_cmd_flag(char *flag, bool *show_class_info, bool *save_temp_files) 
     NO_COMPILE = true;
   else if(strcmp(flag, "-save-temps") == 0)
     *save_temp_files = true;
+  else if(strcmp(flag, "-mortal-errors") == 0)
+    MORTAL_ERRORS = true;
   else 
     declass_missing_Cfile_alert(); // Invalid cmd-line flag: != "-l" nor "-no-compile" nor "-save-temps"
 }
@@ -813,6 +852,36 @@ void enable_smrtptr_alerts() {
   *p++ = ' '; *p++ = ' '; // uncomment smrtrealloc alert
   while(*p != '\0' && !is_at_substring(p, "// printf(\"SMART POINTER FREED!\\n\");")) ++p;
   *p++ = ' '; *p++ = ' '; // uncomment smrtfree alert
+}
+
+// parses file to confirm reserved "DC_" prefix was not used to name any token
+void confirm_no_reserved_DC_prefix(char *file_buffer) {
+  bool in_a_string = false, in_a_char = false, in_token_scope = true, found_reserved_prefix = false;
+  char *p = file_buffer, bad_code_buffer[BAD_CODE_BUFFER_LENGTH];
+  if(is_at_substring(p, "DC_")) found_reserved_prefix = true;
+  else {
+    ++p;
+    while(*p != '\0') {
+      account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, p);
+      if(in_token_scope && !VARCHAR(*(p - 1)) && is_at_substring(p, "DC_")) {
+        found_reserved_prefix = true;
+        break;
+      }
+      ++p;
+    }
+  }
+  if(found_reserved_prefix) {
+    fprintf(stderr, "\033[1mdeclass.c:%03d: \033[31mERROR\033[0m\033[1m DETECTED RESERVED \"DC_\" PREFIX IN FILE!\033[0m\n >> FOUND HERE:", __LINE__);
+    FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+    get_invalid_code_snippet(file_buffer, p, bad_code_buffer);
+    fprintf(stderr, "\n\033[1m<CODE_SNIPPET>\n\033[7m%s\033[0m\n\033[1m</CODE_SNIPPET>\033[0m\n\n", bad_code_buffer);
+    fprintf(stderr, " >> REMOVE THE RESERVED PREFIX FROM FILE (AS PER CAVEAT #0 SO WAY TO GO READING THE DOCUMENTATION) TO DECLASSIFY FILE!\n");
+    if(MORTAL_ERRORS) ask_user_whether_to_quit_or_continue_declassification();
+    else {
+      fprintf(stderr, " >> Terminating Declassifier.\n");
+      exit(EXIT_FAILURE);
+    }
+  }
 }
 
 // confirms file exists, non-empty, & takes less memory than MAX_FILESIZE
@@ -837,21 +906,35 @@ void confirm_valid_file(char *filename) {
 
 // confirms command processor exists to compile declassified code autonomously via "system()":
 // if DNE declass.c only converts the file w/o compiling, as if "#define DECLASS_NCOMPILE" were found
-void confirm_command_processor_exists_for_autonomous_compilation() {
+void confirm_command_processor_exists_for_autonomous_compilation(int line_No) {
   if(!NO_COMPILE && !system(NULL)) { // no need to show if client already disabled auto-compilation
-    fprintf(stderr, "declass.c: \033[1m\033[33mWARNING\033[0m, Command Processor Does Not Exist!\n");
+    fprintf(stderr, "\033[1mdeclass.c:%03d: \033[33mWARNING\033[0m\033[1m, Command Processor Does Not Exist!\033[0m\n", line_No);
     fprintf(stderr, " >> Declassifying File Without Compiling.\n >> Client Must Manually Compile Converted Code.\n");
     NO_COMPILE = true;
   }
 }
 
-// 'declassified' in ascii
+// 'declassified' in spaces with the background & "text" colors reversed
 void declass_DECLASSIFIED_ascii_art() {
-  printf("\n=================================================================================\n\033[1m");
-  printf("||^\\\\  /|===\\ //==\\ ||     //^\\\\    //==/ //==/ ==== |===\\ ==== /|===\\ ||^\\\\   //\n");
-  printf("||  )) ||==   ||    ||    |/===\\|   \\\\    \\\\     ||  |==    ||  ||==   ||  )) //\n");
-  printf("||_//  \\|===/ \\\\==/ |===/ ||   || /==// /==//   ==== ||    ==== \\|===/ ||_// <*>");
-  printf("\033[0m\n=================================================================================\n");
+  const char *rev  = "\033[7m", *not  = "\033[0m";
+  printf("\n=================================================================================\n");
+  printf("%s   %s    %s    %s   %s    %s  %s  %s     %s   %s     %s    %s   %s    %s  %s   %s  %s     %s %s   %s  %s    %s  %s   %s   %s     %s\n", 
+    rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not);
+  printf("%s %s %s  %s  %s  %s  %s  %s %s  %s  %s  %s  %s %s     %s %s %s %s    %s  %s  %s",
+    rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev);
+  printf("  %s %s  %s  %s  %s  %s %s   %s %s   %s %s  %s %s  %s  %s  %s  %s %s %s %s  %s   %s   %s \n", 
+    not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not);
+  printf("%s %s  %s  %s %s   %s    %s  %s      %s %s     %s   %s     %s  %s     %s  %s    ",
+    rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not);
+  printf(" %s %s   %s   %s    %s %s  %s   %s    %s %s  %s  %s   %s %s  \n", 
+    rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not);
+  printf("%s %s %s  %s  %s  %s  %s  %s %s  %s  %s  %s  %s %s %s  %s  %s %s %s %s  %s  %s  %s  %s %s  ",
+    rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev);
+  printf("%s  %s  %s    %s %s   %s %s      %s %s  %s  %s  %s  %s %s %s %s  %s       \n", 
+    not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not);
+  printf("%s   %s    %s    %s   %s    %s   %s   %s  %s  %s %s  %s  %s    %s   %s    %s    %s   %s %s  %s     %s   %s  %s    %s  %s   %s    %s   %s ", 
+    rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not, rev, not);
+  printf("\n=================================================================================\n");
 }
 
 // 'error' in ascii
@@ -867,7 +950,7 @@ void declass_ERROR_ascii_art() {
 void declass_missing_Cfile_alert() {
   declass_ERROR_ascii_art();
   printf("** Missing .c File Cmd Line Argument! **\n");
-  printf("Execution:  $ gcc -o declass declass.c\n            $ ./declass yourFile.c");
+  printf("Exe: $ gcc -std=c99 -o declass declass.c\n     $ ./declass yourFile.c");
   printf("\n========================================");
   printf("\n*** Or Else Misused A Cmd Line Flag! ***\n");
   printf("* Can Be Combined! (end w/ \"yourFile.c\")\n");
@@ -885,7 +968,8 @@ void declass_missing_Cfile_alert() {
 
 // thrown if "#define DECLASS_IGNORE" was detected, terminates program
 void throw_DECLASS_IGNORE_message_and_terminate() {
-  fprintf(stderr, "\n >> declass.c: \033[1m\033[33mWARNING\033[0m \"#define DECLASS_IGNORE\" Was Detected!\n >> Terminating Declassifier.\n\n");
+  fprintf(stderr, "\n >> \033[1mdeclass.c: \033[33mWARNING\033[0m\033[1m \"#define DECLASS_IGNORE\" Was Detected!\033[0m");
+  fprintf(stderr, "\n\033[1m >> Terminating Declassifier.\033[0m\n\n");
   exit(EXIT_FAILURE);
 }
 
@@ -915,11 +999,11 @@ void show_l_flag_data() {
       }
     }
 
-    char method_name[150];
+    char method_name[MAX_TOKEN_NAME_LENGTH];
     if(classes[i].total_methods > 0) {
         printf(" L_ \033[1mMETHODS: %d\033[0m\n", classes[i].total_methods);
       for(int j = 0; j < classes[i].total_methods; ++j) {
-        FLOOD_ZEROS(method_name, 150);
+        FLOOD_ZEROS(method_name, MAX_TOKEN_NAME_LENGTH);
         if(strcmp(classes[i].method_names[j], "DC__constructor") == 0)
           sprintf(method_name, "%s() (( CONSTRUCTOR ))", classes[i].class_name);
         else if(strcmp(classes[i].method_names[j], "DC__destructor") == 0)
@@ -943,46 +1027,57 @@ void show_l_flag_data() {
   }
 }
 
-// triggered when a potential dummy ctor was found as an arg in a method
-// (highly unlikely but still a corner case) either continues declassifying
-// or terminates declass.c's conversion as per user's input
-void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char fcn[12],int line,int class_idx) {
-  fprintf(stderr, 
-    "\033[1m\033[33mWARNING\033[0m UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d\n", fcn, line);
-  fprintf(stderr, 
-    " >> DETECTED \"%s(\" POTENTIAL \"DUMMY\" CTOR INVOCATION IN ARGS OF METHOD: \"%s\" IN CLASS: \"%s\"\n", 
-    classes[class_idx].class_name, classes[total_classes].method_names[classes[total_classes].total_methods-1], 
-    classes[class_idx].class_name);
-  fprintf(stderr, " >> DUMMY CTORS CAN RETURN OBJECTS, BUT NEVER REPRESENT THEM AS A VARIABLE!\n");
+// confirms w/ user as to whether declass.c ought to terminate it's parsing (generally
+// recommended) or to continue attempting declassification
+void ask_user_whether_to_quit_or_continue_declassification() {
   printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
   int continueDeclassification;
   scanf("%d", &continueDeclassification);
   if(continueDeclassification == 1)
     printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
   else {
-    printf("\n\n >> Terminating Program.\n\n");
+    printf("\n\n >> Terminating Declassifier.\n\n");
     exit(EXIT_SUCCESS); // having been intentionally terminated
   }
+}
+
+// triggered when a potential dummy ctor was found as an arg in a method
+// (highly unlikely but still a corner case) either continues declassifying
+// or terminates declass.c's conversion as per user's input
+void POSSIBLE_DUMMY_CTOR_METHOD_ARG_ERROR_MESSAGE(const char fcn[12],int line,int class_idx) {
+  fprintf(stderr, 
+    "\033[1mdeclass.c: \033[33mWARNING\033[0m\033[1m UNDEFINED BEHAVIOR IN FCN: \"%s\", LINE: %d\033[0m\n", fcn, line);
+  fprintf(stderr, 
+    " >> DETECTED \"%s(\" POTENTIAL \"DUMMY\" CTOR INVOCATION IN ARGS OF METHOD: \"%s\" IN CLASS: \"%s\"\n", 
+    classes[class_idx].class_name, classes[total_classes].method_names[classes[total_classes].total_methods-1], 
+    classes[class_idx].class_name);
+  fprintf(stderr, " >> DUMMY CTORS CAN RETURN OBJECTS, BUT NEVER REPRESENT THEM AS A VARIABLE!\n");
+  ask_user_whether_to_quit_or_continue_declassification();
 }
 
 // thrown if during "object pointer being constructed and alloc'd" parsing a double assignment 
 // value not prefixed w/ "DC_" was detected (thus not a prefixed ctor as had been expected) 
 // (such being only instance where a valid double assignment could occur, and even then it's 
 // generated by declass.c not the user)
-void throw_potential_invalid_double_dflt_assignment(char *class_name) {
-  fprintf(stderr, "\033[1m\033[33mWARNING\033[0m UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d\n", __func__, __LINE__);
+void throw_potential_invalid_double_dflt_assignment(const char fcn[12], int line, char *class_name) {
+  fprintf(stderr, "\033[1mdeclass.c: \033[33mWARNING\033[0m\033[1m UNDEFINED BEHAVIOR IN FCN: \"%s\", LINE: %d\033[0m\n", fcn, line);
   fprintf(stderr, 
     " >> DETECTED POTENTIAL DOUBLE DEFAULT-VALUE ASSINGMENT IN CLASS \"%s\" MEMBER DECLARATIONS\n", class_name);
   fprintf(stderr, " >> NORMALLY OCCURS WHEN ALLOCATING & CONSTRUCTING A POINTER MEMBER AT ONCE\n");
   fprintf(stderr, " >> IE: \"ClassName *objectName(args) = smrtmalloc(sizeof(className));\"\n");
-  printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
-  int continueDeclassification;
-  scanf("%d", &continueDeclassification);
-  if(continueDeclassification == 1) 
-    printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
+  ask_user_whether_to_quit_or_continue_declassification();
+}
+
+// thrown if a user-defined an invalid DTOR that took args was detected
+void throw_fatal_error_dtor_has_args(char *class_name, int line_No, char *bad_code_buffer) {
+  fprintf(stderr, "\033[1mdeclass.c:%03d: \033[31mERROR\033[0m\033[1m FOUND INVALID DTOR THAT ACCEPTS ARGS IN CLASS: \"%s\"!\033[0m\n >> FOUND HERE:\n", 
+    line_No, class_name);
+  fprintf(stderr, "\n\033[1m<CODE_SNIPPET>\n\033[7m%s\033[0m\n\033[1m</CODE_SNIPPET>\033[0m\n\n", bad_code_buffer);
+  fprintf(stderr, " >> RMV ARGS FROM DTOR IN ORDER TO BE VALID FOR DECLASSIFICATION! DTORS CAN \033[1mNEVER\033[0m TAKE ARGS!\n");
+  if(MORTAL_ERRORS) ask_user_whether_to_quit_or_continue_declassification();
   else {
-    printf("\n\n >> Terminating Program.\n\n");
-    exit(EXIT_SUCCESS); // having been intentionally terminated
+    fprintf(stderr, " >> Terminating Declassifier.\n");
+    exit(EXIT_FAILURE);
   }
 }
 
@@ -1123,8 +1218,8 @@ void get_dummy_ctor_invoking_object_chain(char *read, char *invoking_chain, int 
   int in_array_scope = 0;
   char *p = read - 1; // 1 position directly behind dummy ctor invocation class name
   char *q = invoking_chain, *invocation_end, *scout;
-  char invoking_name[300], *last_member_invocation_punctuation = NULL;
-  FLOOD_ZEROS(invoking_name, 300);
+  char invoking_name[MAX_TOKEN_NAME_LENGTH * 2], *last_member_invocation_punctuation = NULL;
+  FLOOD_ZEROS(invoking_name, MAX_TOKEN_NAME_LENGTH * 2); // * 2 in case = an object array cell accessed via an array subscript 
   // move to the beginning of the invoking object/chain
   while(*p != '=') --p;         // move to '='
   --p;                          // move 1 behind '='
@@ -1429,11 +1524,11 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct
   // obj ctor as default val for an obj member, NOT a method declaration
   if(*is_ctor == ';') { 
     *found_ctor = true;
-    char ctored_class[75], ctored_obj[75], appended_ctor_object[100];
+    char ctored_class[MAX_TOKEN_NAME_LENGTH], ctored_obj[MAX_TOKEN_NAME_LENGTH], appended_ctor_object[MAX_TOKEN_NAME_LENGTH];
     char *ctored_class_ptr = ctored_class, *ctored_obj_ptr = ctored_obj;
     char *ctoring_invokers = end - 1, *check_no_ctor_args = is_ctor;
-    FLOOD_ZEROS(ctored_obj, 75); FLOOD_ZEROS(ctored_class, 75); 
-    FLOOD_ZEROS(appended_ctor_object, 100);
+    FLOOD_ZEROS(ctored_obj, MAX_TOKEN_NAME_LENGTH); FLOOD_ZEROS(ctored_class, MAX_TOKEN_NAME_LENGTH); 
+    FLOOD_ZEROS(appended_ctor_object, MAX_TOKEN_NAME_LENGTH);
     while(no_overlap(*ctoring_invokers, "\n;")) --ctoring_invokers;               // move to the end of the line
     while(!VARCHAR(*ctoring_invokers)) ++ctoring_invokers;                        // move to class name "type"
     while(VARCHAR(*ctoring_invokers))  *ctored_class_ptr++ = *ctoring_invokers++; // copy class of object being ctor'd
@@ -1441,7 +1536,7 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct
     *ctored_class_ptr = '\0';
     // if at "immortal" prefix: empty "ctored_class" & re-scrape the class name again but AFTER the keyword
     if(*IMMORTALITY && strcmp(ctored_class, "immortal") == 0) { 
-      FLOOD_ZEROS(ctored_class, 75); 
+      FLOOD_ZEROS(ctored_class, MAX_TOKEN_NAME_LENGTH); 
       ctored_class_ptr = ctored_class;
       while(!VARCHAR(*ctoring_invokers)) ++ctoring_invokers; // skip space between "immortal" & class name
       while(VARCHAR(*ctoring_invokers))                      // copy class name "type" after "immortal" keyword
@@ -1453,8 +1548,8 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct
     *ctored_class_ptr = '\0', *ctored_obj_ptr = '\0';
 
     // check whether object ctor is for a single or array of objects
-    char *check_array = end - 1, ctor_fcn_assignment[300];
-    FLOOD_ZEROS(ctor_fcn_assignment, 300);
+    char *check_array = end - 1, ctor_fcn_assignment[MAX_TOKEN_NAME_LENGTH * 2];
+    FLOOD_ZEROS(ctor_fcn_assignment, MAX_TOKEN_NAME_LENGTH * 2);
     while(IS_WHITESPACE(*check_array)) --check_array;
     bool array_ctor = (*check_array == ']');
     if(array_ctor) 
@@ -1495,17 +1590,9 @@ char *check_for_ctor_obj(char*end,char*struct_buff_idx,int*class_size,int*struct
     for(; is_a_defined_class < total_classes + 1; ++is_a_defined_class)
       if(strcmp(ctored_class, classes[is_a_defined_class].class_name) == 0) break;
     if(is_a_defined_class == total_classes + 1) {
-      fprintf(stderr, "declass.c: \033[1m\033[33mWARNING\033[0m UNDEFINED BEHAVIOR IN DECLASS.C FCN: \"%s\", LINE: %d\n", __func__, __LINE__);
+      fprintf(stderr, "\033[1mdeclass.c: \033[33mWARNING\033[0m\033[1m UNDEFINED BEHAVIOR IN FCN: \"%s\", LINE: %d\033[0m\n", __func__, __LINE__);
       fprintf(stderr, " >> EXPECTED OBJECT CTOR FOR MEMBER: \"%s\" IN CLASS: \"%s\"\n", ctored_obj, ctored_class);
-      printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
-      int continueDeclassification;
-      scanf("%d", &continueDeclassification);
-      if(continueDeclassification == 1)
-        printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
-      else {
-        printf("\n\n >> Terminating Program.\n\n");
-        exit(EXIT_SUCCESS); // having been intentionally terminated
-      }
+      ask_user_whether_to_quit_or_continue_declassification();
       return end;
     }
 
@@ -1630,7 +1717,7 @@ void get_if_else_object_idxs(char *return_cond, int *cond_idx) {
 // returns whether "dtor condition" for when handling "?:" one-line conditionals has been spliced in earlier already
 bool unique_dtor_condition(char *returnFrom, char *dtor_condition) {
   // if "max_iter" is hit some joker is writing their entire class without pressing "return",
-  // if that joker is you I hope the thought of undefined behavior gets you jazzed up because
+  // if that joker is you I sincerely hope the thought of undefined behavior gets you jazzed up because
   // lord almighty if so you're in for quite a treat when your compiler gets a stroke trying to run this
   int iterations = 0, max_iter = strlen(dtor_condition) * 4 + 10; 
   while(*returnFrom != '\n' && iterations-- < max_iter) {
@@ -1645,9 +1732,11 @@ int one_line_conditional(char *cond, bool redefined) {
   char *splice_here = cond;
   int shift_total = 0;
   while(VARCHAR(*cond)) ++cond; // skip "return"
-  char condition[200], return_if[200], return_else[200], else_dtor[200], if_dtor[200];
-  FLOOD_ZEROS(condition, 200); FLOOD_ZEROS(return_if, 200); FLOOD_ZEROS(return_else, 200);
-  FLOOD_ZEROS(else_dtor, 200); FLOOD_ZEROS(if_dtor, 200);
+  char condition[MAX_TOKEN_NAME_LENGTH * 2], return_if[MAX_TOKEN_NAME_LENGTH * 2];
+  char return_else[MAX_TOKEN_NAME_LENGTH * 2], else_dtor[MAX_TOKEN_NAME_LENGTH * 2], if_dtor[MAX_TOKEN_NAME_LENGTH * 2];
+  FLOOD_ZEROS(condition, MAX_TOKEN_NAME_LENGTH * 2); FLOOD_ZEROS(return_if, MAX_TOKEN_NAME_LENGTH * 2); 
+  FLOOD_ZEROS(return_else, MAX_TOKEN_NAME_LENGTH * 2); FLOOD_ZEROS(else_dtor, MAX_TOKEN_NAME_LENGTH * 2); 
+  FLOOD_ZEROS(if_dtor, MAX_TOKEN_NAME_LENGTH * 2);
   char *write = condition;
   bool in_a_string = false, in_a_char = false, in_token_scope = true;
   // copy condition, the "if" return, & the "else" return
@@ -1723,8 +1812,8 @@ void add_object_dtor(char *splice_here, bool object_being_assigned, bool redefin
   FLOOD_ZEROS(dtor, 1000);
 
   // set up tracker to determine whether or not to destroy elt
-  char dtor_flag[300];
-  FLOOD_ZEROS(dtor_flag, 300);
+  char dtor_flag[MAX_TOKEN_NAME_LENGTH * 2];
+  FLOOD_ZEROS(dtor_flag, MAX_TOKEN_NAME_LENGTH * 2);
   while(*splice_here != '\0') { // skip past object declaration
     account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, splice_here);
     if(in_token_scope && *(splice_here-1) == ';') break;
@@ -1812,9 +1901,9 @@ void add_object_dtor(char *splice_here, bool object_being_assigned, bool redefin
 ******************************************************************************/
 
 // parse object method invocations -- 'method_words' only meaningful when 'is_nested_method' == true
-int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_method, char method_words[][75]) {
-  char *p = s, first_char = *s, new_fcn_call[75];
-  FLOOD_ZEROS(new_fcn_call, 75);
+int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_method, char method_words[][MAX_TOKEN_NAME_LENGTH]) {
+  char *p = s, first_char = *s, new_fcn_call[MAX_TOKEN_NAME_LENGTH];
+  FLOOD_ZEROS(new_fcn_call, MAX_TOKEN_NAME_LENGTH);
   int method_name_size = 0;
   if(!(VARCHAR(*p)) && (VARCHAR(*(p + 1)))) {                                  // may be object
     p++;
@@ -1823,7 +1912,7 @@ int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_meth
       if(strlen(p) > len && is_at_substring(p, objects[i].object_name)) {      // found object
         int invoker_size = is_method_invocation(p + len);
         if(invoker_size == 0) continue;                                        // no invocation notation (no '.' nor '->')
-        char invoked_member_name[75];
+        char invoked_member_name[MAX_TOKEN_NAME_LENGTH];
         get_invoked_member_name(p + len + invoker_size, invoked_member_name);  // get member name
         if(invoked_member_is_method(invoked_member_name, objects[i].class_name, is_nested_method)) { // member = method
           while((invoker_size = is_method_invocation(p)) > 0 || VARCHAR(*p)) { // move p to after object & method names
@@ -1848,10 +1937,10 @@ int parse_method_invocation(char *s, char *NEW_FILE, int *j, bool is_nested_meth
 
 // splice in prepended method name to buffer via an index subscript
 void splice_in_prepended_method_name(char*new_fcn_call,char*p,int i,char*NEW_FILE,int*j,
-                                     int*method_name_size,char method_words[][75]) {
-  char objectName[200], objectChain[200]; // 'objectName' refers to outermost object in 'objectChain
+                                     int*method_name_size,char method_words[][MAX_TOKEN_NAME_LENGTH]) {
+  char objectName[MAX_TOKEN_NAME_LENGTH * 2], objectChain[MAX_TOKEN_NAME_LENGTH * 2]; // 'objectName' refers to outermost object in 'objectChain
   bool objectName_is_pointer = false;
-  FLOOD_ZEROS(objectName, 200); FLOOD_ZEROS(objectChain, 200); 
+  FLOOD_ZEROS(objectName, MAX_TOKEN_NAME_LENGTH * 2); FLOOD_ZEROS(objectChain, MAX_TOKEN_NAME_LENGTH * 2); 
   get_object_name(objectName, objectChain, p, i, method_words, false, &objectName_is_pointer);
 
   // remove invoking object's container object chain-prefix from 'NEWFILE' (if present)
@@ -1870,10 +1959,10 @@ void splice_in_prepended_method_name(char*new_fcn_call,char*p,int i,char*NEW_FIL
 
 // splice in prepended method name to buffer via a pointer
 void splice_in_prepended_NESTED_method_name(char*new_fcn_call,char*p,int i,char*method_buff_idx,
-                                            int*method_name_size,char method_words[][75]){
-  char objectName[200], objectChain[200]; // 'objectName' refers to outermost object in 'objectChain
+                                            int*method_name_size,char method_words[][MAX_TOKEN_NAME_LENGTH]){
+  char objectName[MAX_TOKEN_NAME_LENGTH * 2], objectChain[MAX_TOKEN_NAME_LENGTH * 2]; // 'objectName' refers to outermost object in 'objectChain
   bool objectName_is_pointer = false;
-  FLOOD_ZEROS(objectName, 200); FLOOD_ZEROS(objectChain, 200);
+  FLOOD_ZEROS(objectName, MAX_TOKEN_NAME_LENGTH * 2); FLOOD_ZEROS(objectChain, MAX_TOKEN_NAME_LENGTH * 2);
   get_object_name(objectName, objectChain, p, i, method_words, true, &objectName_is_pointer);
 
   // remove invoking object's container object chain-prefix from 'method_buff_idx' (if present)
@@ -1888,9 +1977,9 @@ void splice_in_prepended_NESTED_method_name(char*new_fcn_call,char*p,int i,char*
   for(int idx = 0; idx < classes[total_classes].total_members; ++idx) {
     if(classes[total_classes].member_names[idx][0] == 0) continue; // struct member -- disregard
     if(strcmp(classes[total_classes].member_names[idx], objectName) == 0) {
-      FLOOD_ZEROS(objectName, 200);                   // empty out object name
+      FLOOD_ZEROS(objectName, MAX_TOKEN_NAME_LENGTH * 2);                   // empty out object name
       sprintf(objectName, "(this->%s)", objectChain); // write prefixed-objectChain to objectName 
-      FLOOD_ZEROS(objectChain, 200);                  // empty objectChain
+      FLOOD_ZEROS(objectChain, MAX_TOKEN_NAME_LENGTH * 2);                  // empty objectChain
       strcpy(objectChain, objectName);                // refill object with it's prefixed self
       break;
     }
@@ -1915,8 +2004,8 @@ void rmv_excess_buffer_objectChain(char*objectName,char*invokingObject,char*obje
     char *temp = new_fcn_call;
     while(*temp != '\0') *temp = *(temp + 1), ++temp;
     // removes excess/left-over objectChain from 'buffer'
-    char objectChain_clone[200]; // used to get length values to rmv from 'buffer' w/o the altering original objectChain
-    FLOOD_ZEROS(objectChain_clone, 200);
+    char objectChain_clone[MAX_TOKEN_NAME_LENGTH * 2]; // used to get length values to rmv from 'buffer' w/o the altering original objectChain
+    FLOOD_ZEROS(objectChain_clone, MAX_TOKEN_NAME_LENGTH * 2);
     strcpy(objectChain_clone, objectChain);
     char *excess_chain = &objectChain_clone[strlen(objectChain_clone) - 1];    // traverse chain up to first invoker
     if(*excess_chain == ']') while(*(excess_chain + 1) != '[') --excess_chain; // skip first subscript
@@ -1978,7 +2067,7 @@ void get_invoked_member_name(char *member_ptr, char *invoked_member_name) {
 // subscripts as needed) as well as whether the outermost object is a pointer
 // 'is_nested_object' indicates parsing a nested method-within-a-method invocation
 void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int i,
-                     char method_words[][75],bool is_nested_object,bool*objectName_is_pointer) {
+                     char method_words[][MAX_TOKEN_NAME_LENGTH],bool is_nested_object,bool*objectName_is_pointer) {
   // * outerMost_objectName is the name - w/o subscripts - of the outermost object leading the object chain of invocation
   // * the objectChain consists of an optional outer container object that contains the method-invoking
   //   object, as well as any potential array subscripts for either the container &/or invoking object.
@@ -2002,8 +2091,8 @@ void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int 
   while(!VARCHAR(*chain_head)) ++chain_head;                         // move up to the first object name
 
   // move chain tail past the method name ('buffer' starts at '(' after method name) to end of invocation
-  char invoc_punc[75];      // stores invocation punctuation IN REVERSE (ie '->' stored as '>-')
-  FLOOD_ZEROS(invoc_punc, 75);
+  char invoc_punc[MAX_TOKEN_NAME_LENGTH];      // stores invocation punctuation IN REVERSE (ie '->' stored as '>-')
+  FLOOD_ZEROS(invoc_punc, MAX_TOKEN_NAME_LENGTH);
   int index = 0;
   while(VARCHAR(*chain_tail)) --chain_tail;                          // skip method name
   while(!VARCHAR(*chain_tail) && no_overlap(*chain_tail, "[]"))      // cpy/skip method invocation punct
@@ -2024,8 +2113,8 @@ void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int 
 
   // if nested, find any local members w/in array subscript to prefix 'this->'
   if(is_nested_object) {
-    char prefixed_objectChain[200];
-    FLOOD_ZEROS(prefixed_objectChain, 200);
+    char prefixed_objectChain[MAX_TOKEN_NAME_LENGTH * 2];
+    FLOOD_ZEROS(prefixed_objectChain, MAX_TOKEN_NAME_LENGTH * 2);
     prefixed_objectChain[0] = '\0';
     char *read_chain = objectChain, *write_chain = prefixed_objectChain;
     while(*read_chain != '\0') {
@@ -2038,7 +2127,7 @@ void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int 
       if(*read_chain != '\0') *write_chain++ = *read_chain++;
     }
     *write_chain = '\0';
-    FLOOD_ZEROS(objectChain, 200); // save prefixed object chain as the only object chain
+    FLOOD_ZEROS(objectChain, MAX_TOKEN_NAME_LENGTH * 2); // save prefixed object chain as the only object chain
     strcpy(objectChain, prefixed_objectChain);
   }
 
@@ -2061,7 +2150,7 @@ void get_object_name(char*outerMost_objectName,char*objectChain,char*buffer,int 
 }
 
 // prefixes local members with 'this->' & cpys entire method arg to 'write_to_buffer'
-int prefix_local_members_and_cpy_method_args(char*end,char*write_to_buffer,char method_words[][75],
+int prefix_local_members_and_cpy_method_args(char*end,char*write_to_buffer,char method_words[][MAX_TOKEN_NAME_LENGTH],
                                              int*buffer_length,char delimiter) {
   int end_increment = 0;
   char *word_start = end + 1, *findArrow;
@@ -2078,8 +2167,8 @@ int prefix_local_members_and_cpy_method_args(char*end,char*write_to_buffer,char 
       }
       word_start = end + 1; 
     } else if(VARCHAR(*end) && !VARCHAR(*(end+1))) {                          // at argument word's end
-      char argument[75];
-      FLOOD_ZEROS(argument, 75);
+      char argument[MAX_TOKEN_NAME_LENGTH];
+      FLOOD_ZEROS(argument, MAX_TOKEN_NAME_LENGTH);
       int idx = 0;
       while(word_start != end + 1) argument[idx++] = *word_start++;           // copy argument word
       argument[idx++] = '\0';
@@ -2107,9 +2196,9 @@ int prefix_local_members_and_cpy_method_args(char*end,char*write_to_buffer,char 
 //                           1 = in method (total_classes+1) (dtor if not returned)
 bool store_object_info(char *s, int total_classes_increment, bool *dummy_ctor) {
   bool not_an_arg = true, is_fcn_assignment = false, has_dtor = false, is_alloced_class_pointer = false;
-  char *q = s, *p = s, object_name[75], class_type_name[75];
-  FLOOD_ZEROS(object_name, 75); 
-  FLOOD_ZEROS(class_type_name, 75);
+  char *q = s, *p = s, object_name[MAX_TOKEN_NAME_LENGTH], class_type_name[MAX_TOKEN_NAME_LENGTH];
+  FLOOD_ZEROS(object_name, MAX_TOKEN_NAME_LENGTH); 
+  FLOOD_ZEROS(class_type_name, MAX_TOKEN_NAME_LENGTH);
   int i = 0, j = 0;
   *dummy_ctor = false;
 
@@ -2237,8 +2326,11 @@ void confirm_only_one_cdtor(char *class_name, char *structor_type, bool possible
     fprintf(stderr, "\n >> NO FUNCTION OVERLOADING");
     if(!possible_dtor && classes[total_classes].class_has_ctor && NO_COLA_PARSER)
       fprintf(stderr, " (\"#define DECLASS_NCOLA\" WAS DETECTED!)");
-    fprintf(stderr, ", TERMINATING DECLASS.C PROGRAM\n\n");
-    exit(EXIT_FAILURE);
+    if(MORTAL_ERRORS) ask_user_whether_to_quit_or_continue_declassification();
+    else {
+      fprintf(stderr, " >> Terminating Declassifier.\n");
+      exit(EXIT_FAILURE);
+    }
   }
 }
 
@@ -2250,13 +2342,16 @@ void confirm_only_valid_cola_overloads(char *class_name) {
         fprintf(stderr, "\n >> declass.c: \033[1m\033[31mERROR\033[0m INVALID DUPLICATE CTOR ARGUMENT-LENGTH \"COLA\" OVERLOAD DETECTED!\n");
         fprintf(stderr, " >> FOUND IN CLASSNAME \"%s\"\n", class_name);
         fprintf(stderr, " >> ONLY FUNCTIONS & CTORS W/ DIFFERING #'S OF ARGUMENTS CAN BE \"COLA\" OVERLOADED!\n");
-        fprintf(stderr, " >> TERMINATING DECLASS.C PROGRAM\n\n");
-        exit(EXIT_FAILURE);
+        if(MORTAL_ERRORS) ask_user_whether_to_quit_or_continue_declassification();
+        else {
+          fprintf(stderr, " >> Terminating Declassifier.\n");
+          exit(EXIT_FAILURE);
+        }
       }
 }
 
 // count the # args in any given ctor (used to design dummy/array object ctor macros for COLA-overloaded user-def'd ctors)
-int count_class_ctor_args(char *r) {
+int count_class_cdtor_args(char *r) {
   bool in_a_string = false, in_a_char = false, in_token_scope = true;
   int in_arg_scope = 1, arg_total = 1;
   ++r; // move "r" to 1st arg in fcn & past opening '('
@@ -2277,11 +2372,11 @@ int count_class_ctor_args(char *r) {
 // whether method is user-defined class constructor/destructor
 void get_prepended_method_name(char*s,char*class_name,char*prepended_method_name,bool*method_is_ctor,bool*method_is_dtor){
   int total_utor_args = 0; // for cola.c overloading
-  char method_name[75], cdtor_name[75], structor_name[30], structor_type[30];
-  char structor_invoker[200];
-  FLOOD_ZEROS(method_name, 75);   FLOOD_ZEROS(cdtor_name, 75);
+  char method_name[MAX_TOKEN_NAME_LENGTH], cdtor_name[MAX_TOKEN_NAME_LENGTH], structor_name[30], structor_type[30];
+  char structor_invoker[MAX_TOKEN_NAME_LENGTH * 2], bad_code_buffer[BAD_CODE_BUFFER_LENGTH];
+  FLOOD_ZEROS(method_name, MAX_TOKEN_NAME_LENGTH);   FLOOD_ZEROS(cdtor_name, MAX_TOKEN_NAME_LENGTH);
   FLOOD_ZEROS(structor_name, 30); FLOOD_ZEROS(structor_type, 30);
-  FLOOD_ZEROS(structor_invoker, 200);
+  FLOOD_ZEROS(structor_invoker, MAX_TOKEN_NAME_LENGTH * 2);
   char *p = s, *q, *name = method_name, *cdtor = cdtor_name;
   *method_is_ctor = false, *method_is_dtor = false;
   while(*p != '\0' && IS_WHITESPACE(*p)) p++; p++; // skip tab
@@ -2307,11 +2402,16 @@ void get_prepended_method_name(char*s,char*class_name,char*prepended_method_name
     confirm_only_one_cdtor(class_name, structor_type, possible_dtor);
     strcpy(prepended_method_name, structor_invoker);
     strcpy(classes[total_classes].method_names[classes[total_classes].total_methods], structor_name);
-    if(possible_dtor)
+    if(possible_dtor) {
       *method_is_dtor = classes[total_classes].class_has_dtor = true;
-    else {
+      if(count_class_cdtor_args(q) > 0) { // DTOR __CANNOT__EVER__ take args!
+        FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+        get_invalid_code_snippet(s, q, bad_code_buffer);
+        throw_fatal_error_dtor_has_args(class_name, __LINE__, bad_code_buffer);
+      }
+    } else {
       *method_is_ctor = classes[total_classes].class_has_ctor = true;
-      total_utor_args = count_class_ctor_args(q); // retrieve & save the number of udef'd args for udef'd ctor
+      total_utor_args = count_class_cdtor_args(q); // retrieve & save the number of udef'd args for udef'd ctor
       classes[total_classes].class_uctor_arg_lengths[classes[total_classes].total_uctors] = total_utor_args;
       ++ classes[total_classes].total_uctors; // increment # of user-defined ctors
       if(total_utor_args > 0) classes[total_classes].class_has_ctor_args = true;
@@ -2369,8 +2469,8 @@ int get_initialized_member_value(char *member_end) {
      * in the DFLT fcn for the class && invoke the user-defined ctor outside of the object array's
      * brace initialization
     */
-    char obj_arr_ctor_val[350]; FLOOD_ZEROS(obj_arr_ctor_val, 350);
-    char obj_single_ctor_val[350]; FLOOD_ZEROS(obj_single_ctor_val, 350);
+    char obj_arr_ctor_val[MAX_TOKEN_NAME_LENGTH * 3]; FLOOD_ZEROS(obj_arr_ctor_val, MAX_TOKEN_NAME_LENGTH * 3);
+    char obj_single_ctor_val[MAX_TOKEN_NAME_LENGTH * 3]; FLOOD_ZEROS(obj_single_ctor_val, MAX_TOKEN_NAME_LENGTH * 3);
     sprintf(obj_arr_ctor_val, "DC__%s_UCTOR_ARR", objects[total_objects-1].class_name);
     sprintf(obj_single_ctor_val, "DC_%s_", objects[total_objects-1].class_name);
     if(is_at_substring(classes[total_classes].member_values[len],obj_arr_ctor_val)
@@ -2406,8 +2506,8 @@ void register_member_class_objects(char *member_end) {
   // objects tagged as "immortal" before they're type never invoke user-defined class destructors
   bool is_immortal = false;
   if(*IMMORTALITY) {
-    char *check_mortality = member_end, keyword[100];
-    FLOOD_ZEROS(keyword, 100);
+    char *check_mortality = member_end, keyword[MAX_TOKEN_NAME_LENGTH];
+    FLOOD_ZEROS(keyword, MAX_TOKEN_NAME_LENGTH);
     char *key_ptr = keyword;
     while(VARCHAR(*check_mortality)) *key_ptr++ = *check_mortality++;
     *key_ptr = '\0';
@@ -2419,10 +2519,10 @@ void register_member_class_objects(char *member_end) {
   }
 
   // store member data-type/name & pointer/array status
-  char member_type[100], member_name[100]; 
+  char member_type[MAX_TOKEN_NAME_LENGTH], member_name[MAX_TOKEN_NAME_LENGTH]; 
   int idx = 0;
   bool is_class_pointer = false, is_class_array = false;
-  FLOOD_ZEROS(member_type, 100); FLOOD_ZEROS(member_name, 100);
+  FLOOD_ZEROS(member_type, MAX_TOKEN_NAME_LENGTH); FLOOD_ZEROS(member_name, MAX_TOKEN_NAME_LENGTH);
 
   // find the member's data type & determine if type is a class name (thus member = class object)
   while(VARCHAR(*member_end)) member_type[idx++] = *member_end++; 
@@ -2529,7 +2629,6 @@ int get_class_member(char *end, bool is_fcn_ptr) {
     classes[total_classes].member_is_pointer[len] = (*find_asterisk == '*');
 
     int i = 0;                                                       // copy member to classes struct
-    // for(; member_start != member_end; ++member_start) 
     while(member_start != member_end) {
       if(VARCHAR(*member_start)) classes[total_classes].member_names[len][i++] = *member_start;
       ++member_start;
@@ -2543,9 +2642,9 @@ int get_class_member(char *end, bool is_fcn_ptr) {
 }
 
 // adds a word from method into 'method_words[][]'
-void add_method_word(char method_words[][75], int *word_size, char *word_start, char *word_end) {
-  char *p = word_start, method_word[75];
-  FLOOD_ZEROS(method_word, 75);
+void add_method_word(char method_words[][MAX_TOKEN_NAME_LENGTH], int *word_size, char *word_start, char *word_end) {
+  char *p = word_start, method_word[MAX_TOKEN_NAME_LENGTH];
+  FLOOD_ZEROS(method_word, MAX_TOKEN_NAME_LENGTH);
   int i = 0, j;
   while(p - 1 != word_end) method_word[i++] = *p++;
   method_word[i] = '\0';
@@ -2585,7 +2684,7 @@ bool not_local_var_declaration(char *word_start) {
 }
 
 // returns whether method doesn't already have word (if false, var is then NOT a member)
-bool not_in_method_words(char method_words[][75], int word_size, char *word) {
+bool not_in_method_words(char method_words[][MAX_TOKEN_NAME_LENGTH], int word_size, char *word) {
   for(int j = 0; j < word_size; ++j) if(strcmp(method_words[j], word) == 0) return false;
   return true;
 }
@@ -2602,8 +2701,8 @@ bool not_an_external_invocation(char *method_buff_idx) {
 
 // given a member's index, splices in 'this->' after member's name
 void splice_in_this_arrowPtr(char *method_buff_idx) {
-  char members_name[75];
-  FLOOD_ZEROS(members_name, 75);
+  char members_name[MAX_TOKEN_NAME_LENGTH];
+  FLOOD_ZEROS(members_name, MAX_TOKEN_NAME_LENGTH);
   method_buff_idx--;                                  // move ptr back to a char (at '\0' right now)
   while(VARCHAR(*method_buff_idx)) --method_buff_idx; // move ptr back to front of member name
   method_buff_idx++;                                  // increment ptr to right B4 member name
@@ -2613,12 +2712,12 @@ void splice_in_this_arrowPtr(char *method_buff_idx) {
 
 // finds methods invoked w/in methods of their same class such that they
 // should be prepended 'className'_ & take 'this' as their last arg
-int parse_local_nested_method(char *end, char *method_buff_idx, char *class_name, char method_words[][75]) {
+int parse_local_nested_method(char *end, char *method_buff_idx, char *class_name, char method_words[][MAX_TOKEN_NAME_LENGTH]) {
   int prepended_size = 0;
   if(!VARCHAR(*end) && VARCHAR(*(end + 1))) {
     *method_buff_idx++ = *end++, prepended_size++;                     // move to first letter
-    char method_name[75];
-    FLOOD_ZEROS(method_name, 75);
+    char method_name[MAX_TOKEN_NAME_LENGTH];
+    FLOOD_ZEROS(method_name, MAX_TOKEN_NAME_LENGTH);
     int i = 0;
     while(VARCHAR(*end)) method_name[i++] = *end++, prepended_size++;  // copy method name
     if(*end != '(') return 0;                                          // if no method
@@ -2638,7 +2737,7 @@ int parse_local_nested_method(char *end, char *method_buff_idx, char *class_name
 }
 
 // umbrella fcn evaluating all conditions for a word to be a local class member
-bool valid_member(char*word_start,char*memberName,char nextChar,char period,char method_words[][75],int word_size) {
+bool valid_member(char*word_start,char*memberName,char nextChar,char period,char method_words[][MAX_TOKEN_NAME_LENGTH],int word_size) {
   return (is_at_substring((word_start+1), memberName) && !VARCHAR(*word_start) // at potential member
     && (!VARCHAR(nextChar) || period == '.')                                   // member = word or struct
     && not_local_var_declaration(word_start+1)                                 // not redeclared
@@ -2665,9 +2764,9 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   FLOOD_ZEROS(method_buff, MAX_METHOD_BYTES_PER_CLASS);
   
   // struct_buff stores non-method elts from class to be put into struct
-  char struct_buff[MAX_MEMBER_BYTES_PER_CLASS], class_name[75], *struct_buff_idx;
+  char struct_buff[MAX_MEMBER_BYTES_PER_CLASS], class_name[MAX_TOKEN_NAME_LENGTH], *struct_buff_idx;
   FLOOD_ZEROS(struct_buff, MAX_MEMBER_BYTES_PER_CLASS);
-  FLOOD_ZEROS(class_name, 75);
+  FLOOD_ZEROS(class_name, MAX_TOKEN_NAME_LENGTH);
   get_class_name(class_instance, class_name);
   sprintf(struct_buff, "typedef struct DC_%s {\n\tint *DC_DTR;", class_name);
   struct_buff_idx = &struct_buff[strlen(struct_buff)]; // points to '\0'
@@ -2677,7 +2776,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   initialize_new_class_default_properties(class_name);
 
   // dummy ctor detection variables
-  char dummy_ctor_invoking_obj_chain[300];
+  char dummy_ctor_invoking_obj_chain[MAX_TOKEN_NAME_LENGTH * 2];
   bool dummy_ctor_ptr_invoked = false, dummy_ctor_invoker_redefined = false;
   int dummy_ctor_len;
 
@@ -2741,9 +2840,9 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
           // confirm at an object pointer being constructed and alloc'd (only instance where a valid double assignment
           // could occur, and even then it's generated by declass.c not the user)
-          if(!is_at_substring(obj_ptr_alloc, "DC_")) throw_potential_invalid_double_dflt_assignment(class_name);
+          if(!is_at_substring(obj_ptr_alloc, "DC_")) throw_potential_invalid_double_dflt_assignment(__func__, __LINE__, class_name);
 
-          FLOOD_ZEROS(classes[total_classes].member_value_user_ctor[current_member], 350);
+          FLOOD_ZEROS(classes[total_classes].member_value_user_ctor[current_member], MAX_TOKEN_NAME_LENGTH);
           while(obj_ptr_alloc != struct_buff_idx) // copy ctor into class of "classes" struct array's ctor value
             classes[total_classes].member_value_user_ctor[current_member][obj_ptr_idx++] = *obj_ptr_alloc++;
           classes[total_classes].member_value_user_ctor[current_member][obj_ptr_idx-1] = '\0';
@@ -2798,8 +2897,8 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       }
 
       // store method variables and keywords to single out local members to make 'this' point to
-      char method_words[MAX_WORDS_PER_METHOD][75], *word_start;
-      for(int i = 0; i < MAX_WORDS_PER_METHOD; ++i) FLOOD_ZEROS(method_words[i], 75);
+      char method_words[MAX_WORDS_PER_METHOD][MAX_TOKEN_NAME_LENGTH], *word_start;
+      for(int i = 0; i < MAX_WORDS_PER_METHOD; ++i) FLOOD_ZEROS(method_words[i], MAX_TOKEN_NAME_LENGTH);
       int word_size = 0;
 
       // confirm whether still w/in method scope or w/in a string
@@ -2807,8 +2906,8 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
       in_a_string = false, in_a_char = false, in_token_scope = true;
       
       // get className-prepended method name
-      char prepended_method_name[150];
-      FLOOD_ZEROS(prepended_method_name, 150);
+      char prepended_method_name[MAX_TOKEN_NAME_LENGTH];
+      FLOOD_ZEROS(prepended_method_name, MAX_TOKEN_NAME_LENGTH);
       bool method_is_ctor = false, method_is_dtor = false;
       get_prepended_method_name(start_of_line, class_name, prepended_method_name, &method_is_ctor, &method_is_dtor);
 
@@ -2894,7 +2993,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
               // in the "DC__DUMMY_" class/ctor name's prefix if so
               if(dummy_ctor) {
                 dummy_ctor_ptr_invoked = dummy_ctor_invoker_redefined = false;
-                FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, 300);
+                FLOOD_ZEROS(dummy_ctor_invoking_obj_chain, MAX_TOKEN_NAME_LENGTH * 2);
                 // flag the object to be destroyed again after being assigned to a dummy ctor (being that they're a new obj instance)
                 get_dummy_ctor_invoking_object_chain(end, dummy_ctor_invoking_obj_chain, k, &dummy_ctor_ptr_invoked, &dummy_ctor_invoker_redefined);
                 dummy_ctor_len = prefix_dummy_ctor_with_DC__DUMMY_(method_buff_idx, end);
@@ -2922,7 +3021,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
               // determine if object is invoking it's user-defined constructor
               char *user_ctor_finder = end;
-              char user_ctor[500]; FLOOD_ZEROS(user_ctor, 500);
+              char user_ctor[1000]; FLOOD_ZEROS(user_ctor, 1000);
               bool is_fcn_returning_obj = false;
               bool user_ctor_invoked=get_user_ctor(user_ctor_finder,user_ctor,classes[k].class_name,&is_fcn_returning_obj);
               // don't splice in any constructors if "object" is actually a fcn returning an object
@@ -3072,9 +3171,11 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   if(*(end - 1) == ';') ++end, ++class_size;
 
   // copy the constructor macros, class-converted-to-struct, & spliced-out methods to 'NEW_FILE'
-  char macro_ctor_comment[200], macro_dtor_comment[200], struct_comment[200], method_comment[200], dflt_comment[200];
-  FLOOD_ZEROS(macro_ctor_comment, 200); FLOOD_ZEROS(macro_dtor_comment, 200);
-  FLOOD_ZEROS(struct_comment, 200);  FLOOD_ZEROS(method_comment, 200); FLOOD_ZEROS(dflt_comment, 200);
+  char macro_ctor_comment[MAX_TOKEN_NAME_LENGTH * 2], macro_dtor_comment[MAX_TOKEN_NAME_LENGTH * 2];
+  char struct_comment[MAX_TOKEN_NAME_LENGTH * 2], method_comment[MAX_TOKEN_NAME_LENGTH * 2], dflt_comment[MAX_TOKEN_NAME_LENGTH * 2];
+  FLOOD_ZEROS(macro_ctor_comment, MAX_TOKEN_NAME_LENGTH * 2); FLOOD_ZEROS(macro_dtor_comment, MAX_TOKEN_NAME_LENGTH * 2);
+  FLOOD_ZEROS(struct_comment, MAX_TOKEN_NAME_LENGTH * 2); FLOOD_ZEROS(method_comment, MAX_TOKEN_NAME_LENGTH * 2); 
+  FLOOD_ZEROS(dflt_comment, MAX_TOKEN_NAME_LENGTH * 2);
   sprintf(macro_ctor_comment, "/* \"%s\" CLASS DEFAULT VALUE MACRO CONSTRUCTORS: */\n", class_name);
   sprintf(macro_dtor_comment, "\n/* \"%s\" CLASS OBJECT ARRAY MACRO DESTRUCTOR: */\n", class_name);
   sprintf(struct_comment, "\n\n/* \"%s\" CLASS CONVERTED TO STRUCT: */\n", class_name);
@@ -3082,21 +3183,21 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
   sprintf(dflt_comment, "\n\n/* DEFAULT PROVIDED \"%s\" CLASS CONSTRUCTOR/DESTRUCTOR: */", class_name);
 
   // make a global class object with default values to initialize client's unassigned class objects with
-  char initial_values_brace[500];
-  FLOOD_ZEROS(initial_values_brace, 500);
+  char initial_values_brace[1000];
+  FLOOD_ZEROS(initial_values_brace, 1000);
   mk_initialization_brace(initial_values_brace, total_classes);
-  char class_global_initializer[2500];
-  FLOOD_ZEROS(class_global_initializer, 2500);
+  char class_global_initializer[6000];
+  FLOOD_ZEROS(class_global_initializer, 6000);
   mk_class_global_initializer(class_global_initializer, class_name, initial_values_brace);
 
   // make macro ctors to assign any objects of this class its default values, as well as
   // initialize any contained class object members too - both for single & array instances of objects
-  char ctor_macros[5500];
-  FLOOD_ZEROS(ctor_macros, 5500); mk_ctor_macros(ctor_macros, class_name); 
+  char ctor_macros[6000];
+  FLOOD_ZEROS(ctor_macros, 6000); mk_ctor_macros(ctor_macros, class_name); 
 
   // make macro dtor to invoke user-defined (or default if undefined by user) dtor across an array of objects
-  char dtor_array_macro[3500];
-  FLOOD_ZEROS(dtor_array_macro, 3500); 
+  char dtor_array_macro[6000];
+  FLOOD_ZEROS(dtor_array_macro, 6000); 
   mk_dtor_array_macro(dtor_array_macro, class_name); 
 
   // struct before methods to use class/struct type for method's 'this' ptr args
@@ -3113,7 +3214,7 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
   total_classes++;
   return class_size;
-  #undef skip_over_blank_lines // nothing below, but just for the sake of keeping it local to the function
+  #undef skip_over_blank_lines
 }
 
 
@@ -3136,34 +3237,58 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 
 
 
-/* ADAPTED & INTEGRATED FROM MY COLA.C PARSER @ https://github.com/jrandleman/Cola */
-
-#define MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM 5000   // max # of macros & fcns parsed file can have
-#define MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE 100 // max # of COLA's per overloaded fcn/macro name
+/************************************************************************************
+ * ADAPTED/INTEGRATED FROM MY COLA.C PARSER @ https://github.com/jrandleman/Cola   *
+ ************************************************************************************
+ * cola.c: C OVERLOADED LENGTH ARGUMENTS: PRE-PREPROCESS .C FILES OVERLOADING      *
+ * FCNS & MACROS BY THEIR # OF ARGS & .C FILES ASSIGNING THEIR FCNS DEFAULT VALUES *
+ ************************************************************************************/
 
 /* GLOBAL FILE FCN/MACRO & OVERLOADING TRACKING STRUCTURES */
 // holds all global fcn & macro def's found in file
 struct function_macro_instance {
-  char name[75];       // defined fcn/macro name
+  char name[MAX_TOKEN_NAME_LENGTH]; // defined fcn/macro name
   int args;            // number of args
   bool overloaded;     // whether its overloaded
   bool is_a_prototype; // whether is a function prototype
+  bool is_a_macro;     // whether is a functionlike macro
 } fmacs[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];
 int fmacs_size = 0;
 // holds function & macro overload instances, derived from "fmacs"
 struct function_macro_overload_instance {
-  char name[75];        // overoaded fcn/macro name
-  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // different arg lengths per overload
+  char name[MAX_TOKEN_NAME_LENGTH]; // overoaded fcn/macro name
+  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE];   // different arg lengths per overload
   int arg_sizes_length; // # of other overoaded fcn/macros w/ same name
+  bool is_a_macro[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // whether each overload is a functionlike macro
 } overload_fmacs[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];
 int overload_fmacs_size = 0;
 
+/* GLOBAL FILE FCN-WITH-DEFAULT-VALUE-ARGS TRACKING STRUCTURES */
+// holds all global fcn def's found in file with default arg values
+struct function_with_default_value_instance {
+  char fcn_name[MAX_TOKEN_NAME_LENGTH]; // fcn instance name
+  int total_args;    // fcn's total args (both dflt & not)
+  int total_dflts;   // fcn's total dflt args
+  int dflt_idxs[MAX_ARGS_PER_FCN]; // fcn's dflt arg idxs wrt its arg list
+  char dflt_vals[MAX_ARGS_PER_FCN][MAX_LENGTH_PER_ARG];      // fcn's dflt values
+} all_dflt_fcns[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM]; // struct to hold all dflt-valued fcn instances
+int all_dflt_fcns_size = 0; // total functions registered
+// holds defaulted-arg function instances, derived from "all_dflt_fcns"
+struct unique_function_default_values {
+  char name[MAX_TOKEN_NAME_LENGTH]; // defaulted-arg (& possibly overoaded) fcn name
+  int arg_sizes_length; // # of other overoaded fcns w/ same name
+  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE];   // arg length(s) (> 1 if overloaded)
+  int total_dflts[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // total arg dflt(s) (> 1 if overloaded)
+  int dflt_idxs[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE][MAX_ARGS_PER_FCN]; // arg dflt idx(s) (> 1 if overloaded)
+  char dflt_vals[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE][MAX_ARGS_PER_FCN][MAX_LENGTH_PER_ARG]; // arg dflt val(s) (> 1 if overloaded)
+} unique_dflt_fcns[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];   // dflt-arg fcn instance
+int unique_dflt_fcns_size = 0; // total unique fcn names associated w/ having 1+ dflt args
+
 /* STRING, CHAR, AND GLOBAL SCOPES STATUS UPDATING && STRING HELPER FUNCTIONS */
 void handle_string_char_brace_scopes(bool*, bool*, int*, char*);
-bool is_at_substring(char*, char*);
 /* COMMENT, CONDITIONAL DIRECTIVE, & MACRO-BODY SKIP/CPY FUNCTIONS */
-char *cola_skip_comments(char*, char*, bool);
-char *cola_skip_conditional_directives(char*, char*, bool);
+char *cola_skip_comments(char*, char*);
+char *cola_skip_conditional_directives(char*, char*);
 char *skip_macro_body(char*);
 /* "fmacs" (FUNCTION MACRO INSTANCES) STRUCT HELPER FUNCTIONS */
 int non_prototype_duplicate_instance_in_fmacs(char*, int);
@@ -3179,24 +3304,39 @@ int overload_fmacs_instance_idx(int);
 /* O/P ALIGNMENT SPACE-PADDING FUNCTIONS */
 int max_fmacs_name_length();
 int max_overload_fmacs_name_length();
+int max_dflts_name_length();
 void print_space_padding(int, int);
 /* MESSAGING FUNCTIONS */
 void COLA_in_ASCII();
 void terminate_program(char*);
-void throw_fatal_error_variadic_overload(char*);
-void throw_fatal_error_duplicate_overload(char*, int);
-void throw_fatal_error_undefined_arg_length_invocation(char*, int);
-void throw_fatal_error_non_functional_invocation_of_overloaded_name(char*);
+void throw_fatal_error_variadic_overload(char*, char*, int);
+void throw_fatal_error_duplicate_overload(char*, int, char*, int);
+void throw_fatal_error_undefined_arg_length_invocation(char*, int, char*, int);
+void throw_fatal_error_non_functional_invocation_of_overload_or_dflt_name(char*, char*, int);
+void throw_fatal_error_invalid_default_arg_value(char*, bool, int);
+void throw_fatal_error_ambiguous_overload(char*, int, int, int, int, int);
 /* FUNCTION/MACRO ARGUMENT COUNTING FUNCTION */
-int count_args(char*, char*);
+int count_args(char*, char*, bool, int);
 /* FUNCTION-PROTOTYPE CHECKING FUNCTION */
 bool is_function_prototype(char*);
 /* MAIN ACCOUNTING FUNCTION FOR FUNCTION/MACRO DEFINITIONS IN FILE */
 void register_all_global_function_macro_defs(char*);
-/* FILTER OVERLOADED MACROS FROM "FMACS" INTO "OVERLOAD_FMACS" STRUCTURE */
+/* FILTER OVERLOADED FCNS/MACROS FROM "FMACS" INTO "OVERLOAD_FMACS" STRUCTURE */
 void filter_overloads_from_FMACS_to_OVERLOAD_FMACS();
-/* PREFIX ALL OVERLOADED FUNCTION/MACRO INSTANCES */
-void prefix_overloaded_instances(char*, char*);
+/* PREFIX FUNCTION/MACRO OVERLOAD INSTANCES & SPLICE IN DEFAULT FUNCTION VALS */
+void prefix_overloaded_and_splice_default_value_instances(char*, char*);
+/* DEFAULT VALUE "unique_dflt_fcns" (HAS DFLT FCN INSTANCES) STRUCT HELPER FCNS */
+bool name_not_in_unique_dflt_fcns(char*);
+int unique_dflt_fcns_instance_idx(int);
+int total_dflts_for_ARG_SIZE_fcn_instance_in_UNIQUE_DFLT_FCNS(int, int);
+/* DEFAULT VALUE FILTER FCN FROM "ALL_DFLT_FCNS" INTO "UNIQUE_DFLT_FCNS" STRUCT */
+void filter_defaulted_fcns_from_ALL_DFLT_FCNS_to_UNIQUE_DFLT_FCNS();
+/* DEFAULT VALUE FCNS CONFIRMING DFLT != PRIOR NON-DFLT, IN MACRO, OR AMBIGUOUS */
+void confirm_no_ambiguous_overloaded_default_values();
+bool ambiguous_overload(int, int, int, int);
+void confirm_valid_default_values_position(int, char*, bool);
+/* DEFAULT VALUE STORING IN "all_dflt_fcns" & WHITING-OUT FROM ARG LIST FUNCTION */
+int store_dflt_value(int, char*);
 
 /******************************************************************************
 * MAIN EXECUTION OF "C OVERLOADED LENGTH ARGUMENTS" PARSER
@@ -3206,25 +3346,30 @@ void prefix_overloaded_instances(char*, char*);
 // Returns Whether or not COLA Overloads Were Found
 bool COLA_C_main_execution(bool show_cola_info, char *declass_filename) { 
   char read[MAX_FILESIZE], write[MAX_FILESIZE];
-  char filename[125], original_filename_DECLASS[125];
+  char filename[MAX_TOKEN_NAME_LENGTH], original_filename_DECLASS[MAX_TOKEN_NAME_LENGTH];
   FLOOD_ZEROS(read, MAX_FILESIZE); FLOOD_ZEROS(write, MAX_FILESIZE);
-  FLOOD_ZEROS(filename, 125); FLOOD_ZEROS(original_filename_DECLASS, 125);
+  FLOOD_ZEROS(filename, MAX_TOKEN_NAME_LENGTH); FLOOD_ZEROS(original_filename_DECLASS, MAX_TOKEN_NAME_LENGTH);
   strcpy(filename, declass_filename);                  // copy original filename
   strcpy(original_filename_DECLASS, declass_filename); // copy original filename
   FSCRAPE(read, filename); // read file
 
-  register_all_global_function_macro_defs(read);   // parse all global fcns/macros
-  filter_overloads_from_FMACS_to_OVERLOAD_FMACS(); // filter fcns/macros, only keeping overloads
+  register_all_global_function_macro_defs(read);    // parse all global fcns/macros
+  filter_defaulted_fcns_from_ALL_DFLT_FCNS_to_UNIQUE_DFLT_FCNS(); // filter dflt-arg'd fcns, grouping together any overloads
+  filter_overloads_from_FMACS_to_OVERLOAD_FMACS();  // filter fcns/macros, only keeping overloads
+  confirm_no_ambiguous_overloaded_default_values(); // confirm no dflt'd fcn & possible overload invocation signature ambiguity
 
-  if(overload_fmacs_size > 0) {
-    prefix_overloaded_instances(read, write);      // prefix all overloads "DC__<arg#>_"
+  bool found_overloads = (overload_fmacs_size > 0);
+  bool found_defaults  = (unique_dflt_fcns_size > 0);
+
+  if(found_overloads || found_defaults) {
+    prefix_overloaded_and_splice_default_value_instances(read, write); // prefix all overloads "DC__<arg#>_"
     COLA_in_ASCII();
   }
   
   // show cola overload/registered global fcn/macro data (if "-l" flag active)
   if(show_cola_info) {
-    int max = 0, i = 0, j = 0;
-    if(overload_fmacs_size > 0) {
+    int max = 0, i = 0, j = 0, k = 0;
+    if(found_overloads) {
       max = max_overload_fmacs_name_length();
       printf("\n\033[1m>> \033[4mOVERLOADS\033[0m\033[1m:\033[0m\n");
       for(i = 0; i < overload_fmacs_size; ++i) {
@@ -3234,6 +3379,24 @@ bool COLA_C_main_execution(bool show_cola_info, char *declass_filename) {
         for(j = 0; j < overload_fmacs[i].arg_sizes_length; ++j) {
           printf(" %d", overload_fmacs[i].arg_sizes[j]);
           if(j < overload_fmacs[i].arg_sizes_length - 1) printf(",");
+        }
+        printf("\n");
+      }
+    }
+
+    if(found_defaults) {
+      max = max_dflts_name_length();
+      printf("\n\033[1m>> \033[4mDEFAULTS\033[0m\033[1m:\033[0m\n");
+      for(i = 0; i < unique_dflt_fcns_size; ++i) {
+        printf("   %02d) \033[1m\033[4mNAME\033[0m \"%s\"", i + 1, unique_dflt_fcns[i].name);
+        print_space_padding(strlen(unique_dflt_fcns[i].name), max);
+        printf(" \033[1m\033[4mDEFAULT FCN ARG VALUES\033[0m \033[1m(\033[4mFcn1\033[0m\033[1m)\033[0m");
+        for(j = 0; j < unique_dflt_fcns[i].arg_sizes_length; ++j) {
+          for(k = 0; k < unique_dflt_fcns[i].total_dflts[j]; ++k) {
+            printf(" %s", unique_dflt_fcns[i].dflt_vals[j][k]);
+            if(k < unique_dflt_fcns[i].total_dflts[j] - 1) printf(",");
+          }
+          if(j < unique_dflt_fcns[i].arg_sizes_length - 1) printf(", \033[1m(\033[4mFcn2\033[0m\033[1m)\033[0m");
         }
         printf("\n");
       }
@@ -3258,13 +3421,17 @@ bool COLA_C_main_execution(bool show_cola_info, char *declass_filename) {
     if(NO_COMPILE || show_cola_info) printf("\n=================================================================================\n");
     FPUT(write, filename);
   } else { // no need to convert file w/o overloads
+    const char *bold_underline = "\033[1m\033[4m";
     if(show_cola_info) printf("\n================================================================================");
-    printf("\n\033[1m>> declass.c: cola.c: \033[4mNO\033[0m \033[1m\033[4mOVERLOADS\033[0m \033[1m\033[4mDETECTED\033[0m\033[1m!\033[0m\n");
+    printf("\n\033[1m>> declass.c: cola.c: \033[4mNO\033[0m %sOVERLOADS\033[0m %sOR\033[0m %sDEFAULTS\033[0m %sDETECTED\033[0m\033[1m!\033[0m\n",
+      bold_underline, bold_underline, bold_underline, bold_underline);
     strcpy(&original_filename_DECLASS[strlen(original_filename_DECLASS)-10], ".c"); // convert "DECLASS_PRECOLA.c" => "DECLASS.c"
     printf("\033[1m>> Renaming \"\033[0m%s\033[1m\" to \"\033[0m%s\033[1m\"\033[0m\n", filename, original_filename_DECLASS);
     if(rename(filename, original_filename_DECLASS) != 0) {
-      fprintf(stderr, "\n >> declass.c: cola.c: \033[1m\033[33mWARNING\033[0m ERROR TRYING TO RENAME \"%s\" TO RMV THE \"_PRECOLA\" POSTFIX!", filename);
-      fprintf(stderr, "\n                       KEEPING \"%s\" AS THE OFFICAL DECLASSIFIED FILENAME!\n", filename);
+      fprintf(stderr, 
+        "\n\033[1m >> declass.c: cola.c:%03d: \033[33mWARNING\033[0m\033[1m ERROR TRYING TO RENAME \"%s\" TO RMV THE \"_PRECOLA\" POSTFIX!\033[0m", 
+        __LINE__, filename);
+      fprintf(stderr, "\n                       \033[1mKEEPING \"%s\" AS THE OFFICAL DECLASSIFIED FILENAME!\033[0m\n", filename);
     }
     if(show_cola_info) printf("================================================================================\n");
   }
@@ -3288,8 +3455,9 @@ void handle_string_char_brace_scopes(bool *in_a_string, bool *in_a_char, int *in
 * COMMENT, CONDITIONAL DIRECTIVE, & MACRO-BODY SKIP/CPY FUNCTIONS
 ******************************************************************************/
 
-// if at a comment instance in "*read" skips over them (& copies to "*write" if "cpy_comments" == true)
-char *cola_skip_comments(char *read, char *write, bool cpy_comments) {
+// if at a comment instance in "*read" skips over them (& copies to "*write" "write" != NULL)
+char *cola_skip_comments(char *read, char *write) {
+  bool cpy_comments = (write != NULL);            // otherwise only skip over
   if(*read == '/' && *(read + 1) == '/') {        // single-line comment
     if(cpy_comments) *write++ = *read++, *write++ = *read++, *write++ = *read++; else read += 3; // skip/copy initial "//"
     while(*read != '\0' && (*read != '\n' || *(read-1) == '\\')) { // skip/copy comment w/o parsing
@@ -3306,8 +3474,9 @@ char *cola_skip_comments(char *read, char *write, bool cpy_comments) {
 }
 
 // if at a preprocessor conditional directive instance in "*read", skips over 
-// (& copies to "*write" if "cpy_dirs" == true)
-char *cola_skip_conditional_directives(char *read, char *write, bool cpy_dirs) {
+// (& copies to "*write" if "write" != NULL)
+char *cola_skip_conditional_directives(char *read, char *write) {
+  bool cpy_dirs = (write != NULL);
   // conditional directives = #if, #ifdef, #ifndef, #elif, #else, & #endif
   char *scout = read - 1;
   bool in_a_string = false, in_a_char = false;
@@ -3401,8 +3570,7 @@ bool macro_is_functionlike(char *read) {
   ++read; // skip initial '('
   bool in_a_string = false, in_a_char = false;
   int in_global_scope = 0, in_arg_scope = 1;
-  char *ignore_arg = read;  // unused in this context
-  while(in_arg_scope > 0) { // skip past possible macro args (macro body f not function-like)
+  while(in_arg_scope > 0) { // skip past possible macro args (macro body if not function-like)
     handle_string_char_brace_scopes(&in_a_string, &in_a_char, &in_global_scope, read);
     if(!in_a_string && !in_a_char && *read == '(')      ++in_arg_scope;
     else if(!in_a_string && !in_a_char && *read == ')') --in_arg_scope;
@@ -3412,7 +3580,7 @@ bool macro_is_functionlike(char *read) {
   ++read; // move past last closing ')' for possible args (if functionlike, else this closes macro body)
   // confirm macro has non-whitespace & non-comment body (makes it function-like in conjunction w/ having args)
   while(*read != '\0' && (*read != '\n' || *(read-1) == '\\')) { 
-    read = cola_skip_comments(read, ignore_arg, false);
+    read = cola_skip_comments(read, NULL);
     if(!IS_WHITESPACE(*read)) return true;
     if(*read != '\0' && (*read != '\n' || *(read-1) == '\\')) ++read;
   }
@@ -3469,6 +3637,14 @@ int max_overload_fmacs_name_length() {
   return max;
 }
 
+// get the max fcn name length in "unique_dflt_fcns" struct
+int max_dflts_name_length() {
+  int max = 0, length;
+  for(int i = 0; i < unique_dflt_fcns_size; ++i)
+    if((length = strlen(unique_dflt_fcns[i].name)) > max) max = length;
+  return max;
+}
+
 // print spaces to pad btwn the 1st column of names & the 2nd data column to align output
 void print_space_padding(int length, int max) {
   for(int i = length; i < max; ++i) printf(" ");
@@ -3498,41 +3674,99 @@ void COLA_in_ASCII() {
   printf("                   \\|======================================|/\n");
 }
 
+// fills "bad_code_buffer" with a snippet of the client's invalid code to show in an error message
+void get_invalid_code_snippet(const char *absolute_array_start, const char *scout, char bad_code_buffer[]) {
+  int j;
+  char *bcb_ptr = bad_code_buffer;
+  // move back then copy the invalid code snippet to show in error message
+  for(j = 0; scout != absolute_array_start && j < 50; ++j) --scout;
+  for(j = 0; scout != '\0' && j < BAD_CODE_BUFFER_LENGTH - 51; ++j) // cpy faulty code snippet
+    *bcb_ptr++ = *scout++; 
+  *bcb_ptr = '\0';
+}
+
 // outputs "message" to stderr, notifies client of cola.c termination, & exits program
 void terminate_program(char *message) {
-  fprintf(stderr, " >> %s\n >> Terminating COLA Processor.\n\n", message);
-  exit(EXIT_FAILURE);
+  if(MORTAL_ERRORS) {
+    fprintf(stderr, " >> %s\n", message);
+    printf(" >> CONTINUE DECLASSIFICATION PROCESS? ENTER 1 FOR YES & 0 FOR NO\n\n>>> ");
+    int continueDeclassification;
+    scanf("%d", &continueDeclassification);
+    if(continueDeclassification == 1)
+      printf("\n\n-:- CONTINUING DECLASSIFICATION PROCESS - \033[1mI HOPE YOU KNOW WHAT YOU'RE DOING\033[0m -:-\n\n");
+    else {
+      printf("\n\n >> Saving declass.c's \"Pre-Cola\" Generated File To Help Client Debug Their Program.\n >> Terminating COLA Processor.\n\n");
+      exit(EXIT_SUCCESS); // having been intentionally terminated
+    }
+  } else {
+    fprintf(stderr, " >> %s\n >> Saving declass.c's \"Pre-Cola\" Generated File To Help Client Debug Their Program.\n >> Terminating COLA Processor.\n\n",
+      message);
+    exit(EXIT_FAILURE);
+  }
 }
 
 // invoked by finding an overloaded variadic macro/fcn
-void throw_fatal_error_variadic_overload(char *name) {
-  fprintf(stderr, "\ndeclass.c: cola.c: \033[1m\033[31mERROR\033[0m INVALID OVERLOADED VARIADIC FUNCTION/MACRO DETECTED!\n");
-  fprintf(stderr, " >> NAME OF VARIADIC FUNCTION/MACRO: \"%s\"\n", name);
-  terminate_program("VARIADIC FUNCTIONS/MACROS \033[1mCANNOT\033[0m BE OVERLOADED!");
+void throw_fatal_error_variadic_overload(char *name, char *bad_code_buffer, int line_No) {
+  fprintf(stderr, "\033[1m\ndeclass.c:cola.c:%03d: \033[31mERROR:\033[0m\033[1m INVALID VARIADIC FCN/MACRO OVERLOAD DETECTED!\n\033[0m", line_No);
+  fprintf(stderr, " >> NAME OF VARIADIC FCN/MACRO: \"%s\"\n", name);
+  fprintf(stderr, " >> SNIPPET OF THE FILE'S INVALID VARIADIC OVERLOAD:\n");
+  fprintf(stderr, "\n\033[1m<CODE_SNIPPET>\n\033[7m%s\033[0m\n\033[1m</CODE_SNIPPET>\033[0m\n\n", bad_code_buffer);
+  terminate_program("VARIADIC FCNS/MACROS \033[1mCANNOT\033[0m BE OVERLOADED!");
 }
 
 // invoked by detecting overloaded fcn/macro name instance w/ an already existing number of args
-void throw_fatal_error_duplicate_overload(char *name, int arg_total) {
-  fprintf(stderr, "\ndeclass.c: cola.c: \033[1m\033[31mERROR\033[0m DUPLICATE FUNCTION/MACRO ARGUMENT-LENGTH OVERLOAD DETECTED!\n");
+void throw_fatal_error_duplicate_overload(char *name, int arg_total, char *bad_code_buffer, int line_No) {
+  fprintf(stderr, "\033[1m\ndeclass.c:cola.c:%03d: \033[31mERROR:\033[0m\033[1m DUPLICATE FCN/MACRO ARGUMENT-LENGTH OVERLOAD DETECTED!\n\033[0m", line_No);
   fprintf(stderr, " >> NAME & ARG-LENGTH DUPLICATE INSTANCE OF AN ALREADY EXISTING ARG-LENGTH OVERLOAD: \"%s\", ARG LENGTH: %d.\n", name, arg_total);
+  fprintf(stderr, " >> SNIPPET OF THE FILE'S DUPLICATE FCN/MACRO ARGUMENT-LENGTH OVERLOAD:\n");
+  fprintf(stderr, "\n\033[1m<CODE_SNIPPET>\n\033[7m%s\033[0m\n\033[1m</CODE_SNIPPET>\033[0m\n\n", bad_code_buffer);
   terminate_program("FUNCTIONS/MACROS W/ THE SAME NUMBER OF ARGUMENTS \033[1mCANNOT\033[0m BE OVERLOADED!");
 }
 
 // invoked by detecting fcn/macro name invocation w/ an unaccounted for # of args (global 
 // definition of overloaded fcn/macro instance w/ particular arg length not registered by "overload_fmacs")
-void throw_fatal_error_undefined_arg_length_invocation(char *name, int arg_total) {
-  fprintf(stderr, "\ndeclass.c: cola.c: \033[1m\033[31mERROR\033[0m UNDEFINED OVERLOADED ARG LENGTH INVOCATION!\n");
-  fprintf(stderr, " >> NO GLOBAL FUNCTION/MACRO DEFINITION OR PROTOTYPE MATCHING INVOKED # OF ARGS FOUND!\n");
+void throw_fatal_error_undefined_arg_length_invocation(char *name, int arg_total, char *bad_code_buffer, int line_No) {
+  fprintf(stderr, "\033[1m\ndeclass.c:cola.c:%03d: \033[31mERROR:\033[0m\033[1m UNDEFINED OVERLOADED ARG LENGTH INVOCATION!\n\033[0m", line_No);
+  fprintf(stderr, " >> NO GLOBAL FCN/MACRO DEFINITION OR PROTOTYPE MATCHED THE # OF ARGS FOUND IN THE INVOCATION!\n");
   fprintf(stderr, " >> NAME & ARG-LENGTH OF UNDEFINED OVERLOAD INSTANCE: \"%s\", ARG LENGTH: %d.\n", name, arg_total);
-  terminate_program("ALL FUNCTION/MACRO ARG-LENGTH OVERLOADS MUST BE INDIVIDUALLY GLOBALLY DEFINED OR PROTOTYPED!");
+  fprintf(stderr, " >> SNIPPET OF THE FILE'S UNDEFINED OVERLOADED ARG LENGTH INVOCATION:\n");
+  fprintf(stderr, "\n\033[1m<CODE_SNIPPET>\n\033[7m%s\033[0m\n\033[1m</CODE_SNIPPET>\033[0m\n\n", bad_code_buffer);
+  terminate_program("ALL FCN/MACRO ARG-LENGTH OVERLOADS MUST BE GLOBALLY DEFINED OR PROTOTYPED!");
 }
 
 // invoked by detecting fcn/macro name invocation w/o any "args list"
-void throw_fatal_error_non_functional_invocation_of_overloaded_name(char *name) {
-  fprintf(stderr, 
-    "\ndeclass.c: cola.c: \033[1m\033[31mERROR\033[0m UNDEFINED NON-FUNCTIONAL INVOCATION OF ARG LENGTH OVERLOAD (NO ANY ARGUMENTS PASSED BTWN \"()\")!\n");
-  fprintf(stderr, " >> NAME OF ARGUMENT-LESS OVERLOAD INVOCATION INSTANCE: \"%s\".\n", name);
-  terminate_program("OVERLOADED FUNCTION/MACRO NAMES \033[1mCANNOT\033[0m BE REDEFINED TO ANY OTHER VARIABLE IN ANY OTHER SCOPE!");
+void throw_fatal_error_non_functional_invocation_of_overload_or_dflt_name(char *name, char *bad_code_buffer, int line_No) {
+  fprintf(stderr, "\033[1m\ndeclass.c:cola.c:%03d: \033[31mERROR:\033[0m\033[1m REDEFINITION OF OVERLOADED/DEFAULT FCN/MACRO ", line_No);
+  fprintf(stderr, "(DETECTED A NON-FUNCTIONAL INVOCATION W/O ARGS & \"()\")!\n\033[0m");
+  fprintf(stderr, " >> NAME OF ARG-LESS REDEFINED OVERLOAD/DEFAULT-ARG-VAL INVOCATION INSTANCE: \"%s\".\n", name);
+  fprintf(stderr, " >> SNIPPET OF THE FILE'S INVALID INVOCATION INSTANCE:\n");
+  fprintf(stderr, "\n\033[1m<CODE_SNIPPET>\n\033[7m%s\033[0m\n\033[1m</CODE_SNIPPET>\033[0m\n\n", bad_code_buffer);
+  terminate_program("DEFAULT-ARG-VAL FCNS & OVERLOADED FCN/MACRO NAMES \033[1mCANNOT\033[0m BE REDEFINED TO ANY OTHER VARIABLE/FCN-PTR IN ANY OTHER SCOPE!");
+}
+
+// invoked by finding a default value prior to a non-default value in a function's arg list
+void throw_fatal_error_invalid_default_arg_value(char *function_name, bool is_a_macro, int line_No) {
+  fprintf(stderr, "\033[1m\ndeclass.c:cola.c:%03d: \033[31mERROR:\033[0m\033[1m INVALID DEFAULT ARG ASSIGNMENT!\n\033[0m", line_No);
+  if(is_a_macro) {
+    fprintf(stderr, " >> DEFAULT VALUE FOR MACRO \"%s\" DETECTED!\n", function_name);
+    terminate_program("ONLY FCNS CAN TAKE DEFAULT VALUES, MACROS \033[1mCANNOT\033[0m!");
+  }
+  fprintf(stderr, " >> DETECTED A DEFAULTED ARG PRECEDING A NON-DEFAULTED ARG IN ARG LIST FOR FCN \"%s\"!\n", function_name);
+  terminate_program("ONLY THE LAST ARGS IN A FCN'S ARG LIST CAN BE DEFAULTED, DEFAULTED ARGS \033[1mCANNOT\033[0m PRECEDE NON-DEFAULTED ARGS!");
+}
+
+// invoked by finding an ambigious invocation signature btwn 2 overloaded fcn instances wrt the implmentation of default values
+void throw_fatal_error_ambiguous_overload(char *function_name, int fcn1_dflts, int fcn1_args, int fcn2_args, int fcn2_dflts, int line_No) {
+  fprintf(stderr, "\033[1m\ndeclass.c:cola.c:%03d: \033[31mERROR:\033[0m\033[1m AMBIGUOUS OVERLOAD WITH DEFAULT ARG ASSIGNMENT!\n\033[0m", line_No);
+  fprintf(stderr, " >> FCN \"%s\" OVERLOAD & DFLT VALUES MAKE ITS INVOCATION SIGNATURE AMBIGUOUS WRT ITS OTHER OVERLOADS!\n", function_name);
+  fprintf(stderr, " >> DATA FOR THE 2 OVERLOADED FCN INSTANCES W/ CONFLICTING AMBIGUOUS INVOCATIONS:\n    OVERLOAD 1:\n\t    ");
+  fprintf(stderr, "TOTAL ARGS = %d, TOTAL NON-DFLT ARGS = %d, TOTAL DFLT ARGS = %d", fcn1_args, fcn1_args - fcn1_dflts, fcn1_dflts);
+  fprintf(stderr, "\n    OVERLOAD 2:\n\t    TOTAL ARGS = %d, TOTAL NON-DFLT ARGS = %d, TOTAL DFLT ARGS = %d\n", 
+    fcn2_args, fcn2_args - fcn2_dflts, fcn2_dflts);
+  fprintf(stderr, " >> ANY OVERLOADED FCN W/ DEFAULT ARG VALUES MUST BE DISCERNABLE BY ADHERING TO EITHER OF THE FOLLOWING:\n");
+  fprintf(stderr, "    (1) HAVING ITS \"TOTAL NON-DFLT ARGS\" EXCEED THE \"TOTAL ARGS\" OF ALL OTHER OVERLOADED FCN INSTANCES\n");
+  fprintf(stderr, "    (2) HAVING ITS \"TOTAL ARGS\" BE LESS THAN THE \"TOTAL NON-DFLT ARGS\" OF ALL OTHER OVERLOADED FCN INSTANCES\n");
+  terminate_program("EITHER ALTER \"OVERLOAD 2\"'S \"TOTAL ARGS\" # OR RMV ITS ARG(S) DEFAULT VALUE TO HAVE A UNIQUE INVOCATION\n    SIGNATURE!");
 }
 
 /******************************************************************************
@@ -3540,24 +3774,60 @@ void throw_fatal_error_non_functional_invocation_of_overloaded_name(char *name) 
 ******************************************************************************/
 
 // given a ptr at the opening '(', returns the # of args in a fcn/macro
-int count_args(char *r, char *function_name) {
+// & finds default values to be passed to & stored by the "store_dflt_value" fcn
+int count_args(char *r, char *function_name, bool is_a_macro, int overload_fmacs_index) {
+  char bad_code_buffer[BAD_CODE_BUFFER_LENGTH]; // used to show snippet of client's code at error
+  char *absolute_start = r;
+  // default-arg-value handling variables
+  all_dflt_fcns[all_dflt_fcns_size].total_dflts = 0; // total defaults found so far is 0 (just started parsing)
+  strcpy(all_dflt_fcns[all_dflt_fcns_size].fcn_name, function_name);
+  FLOOD_ZEROS(all_dflt_fcns[all_dflt_fcns_size].dflt_idxs, MAX_ARGS_PER_FCN);
+  int default_value_length; // length of default arg value to white out
+  // arg-counting variables 
   bool in_a_string = false, in_a_char = false;
   int in_global_scope = 0; // 0 if in global scope, > 0 if in a fcn or any other braces
   int in_arg_scope = 1, arg_total = 1;
   ++r; // move "r" to 1st arg in fcn & past opening '('
   while(*r != '\0' && in_arg_scope > 0) {
     handle_string_char_brace_scopes(&in_a_string, &in_a_char, &in_global_scope, r);
+    if(!in_a_string && !in_a_char) r = cola_skip_comments(r, NULL);
     if(!in_a_string && !in_a_char && *r == '(')      ++in_arg_scope;
     else if(!in_a_string && !in_a_char && *r == ')') --in_arg_scope;
-    if(in_arg_scope <= 0) break;
+    if(*r == '\0' || in_arg_scope <= 0) break;
     if(!in_a_string && !in_a_char && *r == ',') ++arg_total; // at an arg
     if(!in_a_string && !in_a_char && is_at_substring(r, "...") 
-      && overloaded_name_already_in_fmacs(function_name))
-      throw_fatal_error_variadic_overload(function_name); // variadic overload fatal error
+      && overloaded_name_already_in_fmacs(function_name)) {
+      FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+      get_invalid_code_snippet(absolute_start, r, bad_code_buffer);
+      throw_fatal_error_variadic_overload(function_name, bad_code_buffer, __LINE__); // variadic overload fatal error
+    }
+    // at a defaulted arg, store its value & whiteout from 'r'
+    if(*r == '=' && overload_fmacs_index == -1) { // in 1st round: parsing
+      default_value_length = store_dflt_value(arg_total - 1, r);
+      while(*r != '\0' && default_value_length > 0) *r++ = ' ', --default_value_length;
+      continue;
+    }
     ++r;
   }
   --r; // check whether an empty arg list
   while(IS_WHITESPACE(*r)) --r;
+
+  // the 2nd round of splicing in overloaded prefixes can't tell us if at a macro or fcn,
+  // thus must compare the overloaded name w/ the number of registered args in order to 
+  // determine whether or not currently at a macro
+  if(overload_fmacs_index > -1) // in 2nd round of splicing, not parsing overloads
+    for(int i = 0; i < overload_fmacs[overload_fmacs_index].arg_sizes_length; ++i)
+      if(overload_fmacs[overload_fmacs_index].arg_sizes[i] == arg_total) {
+        is_a_macro = overload_fmacs[overload_fmacs_index].is_a_macro[i];
+        break;
+      }
+  if(overload_fmacs_index == -1) { // in 1st round: parsing
+    // throw an error if any defaulted args found prior a non-defaulted arg OR in a macro
+    confirm_valid_default_values_position(arg_total, function_name, is_a_macro); 
+    // register total # of args & increment fcn counter having completed parsing a fcn arg-list instance
+    all_dflt_fcns[all_dflt_fcns_size].total_args = arg_total;
+    ++ all_dflt_fcns_size;
+  }
   return (*r == '(') ? 0 : arg_total;
 }
 
@@ -3591,20 +3861,18 @@ bool is_function_prototype(char *r) {
 // preprocessor directives, along w/ their arg number & overloaded status
 // (fills "fmacs" which then gets filtered into "overload_fmacs" on return to main)
 void register_all_global_function_macro_defs(char *read) {
-  char *r = read, *scout, function_name[75];
+  char *r = read, *scout, function_name[MAX_TOKEN_NAME_LENGTH], bad_code_buffer[BAD_CODE_BUFFER_LENGTH];
   bool in_a_string = false, in_a_char = false, overload, prototype, macro;
   int in_global_scope = 0; // 0 if in global scope, > 0 if in a fcn or any other braces
   int arg_total, duplicate_overload;
-  // "ignore_arg" needed to give "cola_skip_conditional_directives" appropriate arg types
-  char *ignore_arg = read;
 
   // register all function/macro names in file to detect overloads prior to prefixing invocations
   while(*r != '\0') {
     handle_string_char_brace_scopes(&in_a_string, &in_a_char, &in_global_scope, r);
     if(!in_a_string && !in_a_char) {
-      r = cola_skip_comments(r, ignore_arg, false);
+      r = cola_skip_comments(r, NULL);
       if(*r != '\0' && in_global_scope == 0) 
-        r = cola_skip_conditional_directives(r, ignore_arg, false);
+        r = cola_skip_conditional_directives(r, NULL);
     }
     if(!in_a_string && !in_a_char && in_global_scope == 0 && *r == '(') { // potential function/macro
       // check if at a macro, & if so confirm its "functionlike" (can't overload non-functionlike macros)
@@ -3614,16 +3882,19 @@ void register_all_global_function_macro_defs(char *read) {
         continue; 
       } 
       // copy function name
-      FLOOD_ZEROS(function_name, 75);
+      FLOOD_ZEROS(function_name, MAX_TOKEN_NAME_LENGTH);
       get_fmac_name(r, function_name);
       // get number of args for fcn/macro
-      arg_total = count_args(r, function_name);
+      arg_total = count_args(r, function_name, macro, -1);
       // check whether at a function prototype
       prototype = is_function_prototype(r);
       // disregard if function name already exists w/ exact same arg # (ie already registered its prototype)
       if((duplicate_overload = non_prototype_duplicate_instance_in_fmacs(function_name, arg_total)) != -1) { 
-        if(!fmacs[duplicate_overload].is_a_prototype) // throw fatal error if not a prototype
-          throw_fatal_error_duplicate_overload(function_name, arg_total);
+        if(!fmacs[duplicate_overload].is_a_prototype) { // throw fatal error if not a prototype
+          FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+          get_invalid_code_snippet(read, r, bad_code_buffer);
+          throw_fatal_error_duplicate_overload(function_name, arg_total, bad_code_buffer, __LINE__);
+        }
         ++r; 
         continue;
       }
@@ -3635,6 +3906,7 @@ void register_all_global_function_macro_defs(char *read) {
       fmacs[fmacs_size].args = arg_total;
       fmacs[fmacs_size].overloaded = overload;
       fmacs[fmacs_size].is_a_prototype = prototype;
+      fmacs[fmacs_size].is_a_macro = macro;
       ++fmacs_size;
       // check if at a macro to skip over its body
       if(macro) r = skip_macro_body(r);
@@ -3655,38 +3927,134 @@ void filter_overloads_from_FMACS_to_OVERLOAD_FMACS() {
       // new function/macro name overload instance
       strcpy(overload_fmacs[overload_fmacs_size].name, fmacs[i].name);
       overload_fmacs[overload_fmacs_size].arg_sizes[0] = fmacs[i].args;
+      overload_fmacs[overload_fmacs_size].is_a_macro[0] = fmacs[i].is_a_macro;
       overload_fmacs[overload_fmacs_size].arg_sizes_length = 1;
       ++ overload_fmacs_size;
     } else if(fmacs[i].overloaded && (overload_idx = overload_fmacs_instance_idx(i)) != -1) {
       // existing function/macro name overload has a new arg-length overload instance
       overload_fmacs[overload_idx].arg_sizes[overload_fmacs[overload_idx].arg_sizes_length] = fmacs[i].args;
+      overload_fmacs[overload_idx].is_a_macro[overload_fmacs[overload_idx].arg_sizes_length] = fmacs[i].is_a_macro;
       ++ overload_fmacs[overload_idx].arg_sizes_length;
     }
   }
 }
 
 /******************************************************************************
-* PREFIX ALL OVERLOADED FUNCTION/MACRO INSTANCES
+* PREFIX FUNCTION/MACRO OVERLOAD INSTANCES & SPLICE IN DEFAULT FUNCTION VALS
 ******************************************************************************/
 
 // prefix all invocation/declaration/definition instances of file's registered
 // overloaded fcn/macro names & arg lengths (stored in "overload_fmacs" struct)
-void prefix_overloaded_instances(char *read, char *write) {
-  char *r = read, *w = write, *scout;
+// & splice in default values
+void prefix_overloaded_and_splice_default_value_instances(char *read, char *write) {
+  char *r = read, *w = write, *scout, *next_arg, *arg_end;
+  char bad_code_buffer[BAD_CODE_BUFFER_LENGTH];
   bool in_a_string = false, in_a_char = false;
-  int i, j, arg_total, ignore_arg; // "global scope" irrelevant here thus now denoted as "ignore_arg"
+  int i, j, k, arg_total, dflt_args_left, in_arg_scope;
+  int ignore_arg = 0; // "global scope" irrelevant here thus now denoted as "ignore_arg"
 
-  // prefix every overloaded instance w/ "DC__<No_of_Args>_"
+  // prefix every overloaded instance w/ "COLA__<No_of_Args>_"
   while(*r != '\0') {
     // account for scopes
     handle_string_char_brace_scopes(&in_a_string, &in_a_char, &ignore_arg, r);
     if(!in_a_string && !in_a_char) {
-      r = cola_skip_comments(r, w, true), w += strlen(w);
+      r = cola_skip_comments(r, w), w += strlen(w);
       if(!in_a_string && !in_a_char && *r != '\0') 
-        r = cola_skip_conditional_directives(r, w, true), w += strlen(w);
+        r = cola_skip_conditional_directives(r, w), w += strlen(w);
     }
-    // check for potential fcn/macro overload
+    // -:- PARSE FOR DEFAULTS -:- 
+    // check for potential fcn invocation that has default args values
     if(!in_a_string && !in_a_char && VARCHAR(*r) && !VARCHAR(*(r-1))) {
+      for(i = 0; i < unique_dflt_fcns_size; ++i) {
+        // potential dflt'd fcn arg val instance
+        if(is_at_substring(r, unique_dflt_fcns[i].name) && !VARCHAR(*(r+strlen(unique_dflt_fcns[i].name)))) { 
+          // get number of args
+          scout = r;
+          while(VARCHAR(*scout))       ++scout; // skip past name
+          while(IS_WHITESPACE(*scout)) ++scout; // skip past optional whitespace btwn name && '('
+          
+          // dflt'd name invocation w/o any args passed btwn "()" afterwards -- COLA names
+          // can NEVER to redefined/reassigned to ANY other variables in ANY other scope
+          if(*scout != '(') {
+            FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+            get_invalid_code_snippet(read, scout, bad_code_buffer);
+            throw_fatal_error_non_functional_invocation_of_overload_or_dflt_name(unique_dflt_fcns[i].name, bad_code_buffer, __LINE__);
+          }
+          arg_total = count_args(scout, unique_dflt_fcns[i].name, false, i);
+
+          // confirm at a dflt'd instance w/ less args than "dflt-total + nondflt-total" & as least the same args as non-dflt total
+          // if same args as nondflt + dflt, no need to splice in anything
+          for(j = 0; j < unique_dflt_fcns[i].arg_sizes_length; ++j)
+            if(arg_total < unique_dflt_fcns[i].arg_sizes[j] && arg_total >= unique_dflt_fcns[i].arg_sizes[j] - unique_dflt_fcns[i].total_dflts[j])
+              break;
+          if(j == unique_dflt_fcns[i].arg_sizes_length) { // not at a defaulted arg that needs splicing in -- continue onto overload splicing
+            i = unique_dflt_fcns_size;
+            break;
+          }
+
+          // prefix dflt'd fcn invocation if its also overloaded
+          for(k = 0; k < overload_fmacs_size; ++k)
+            if(strcmp(overload_fmacs[k].name, unique_dflt_fcns[i].name) == 0) { // dflt'd fcn is also overloaded
+              // prefix overloaded fcn/macro instance's name w/ reserved header & arg number
+              sprintf(w, "DC__%d_%s", unique_dflt_fcns[i].arg_sizes[j], unique_dflt_fcns[i].name);
+              w += strlen(w), r = scout;
+              break;
+            }
+          // copy name if it wasn't prefixed as an overload
+          if(k == overload_fmacs_size) while(*r != '\0' && r != scout) *w++ = *r++;
+          bool IS_DECLASS_GENERATED = is_at_substring(unique_dflt_fcns[i].name, "DC_");
+
+          // copy the args & splice in the appropriate dflt values at the end of the args list
+          in_arg_scope = 1;
+          arg_end = scout++; // move 1 past the opening '('
+          while(*scout != '\0' && in_arg_scope > 0) { // ends w/ 'scout' pointing at ')'
+            handle_string_char_brace_scopes(&in_a_string, &in_a_char, &ignore_arg, scout);
+            if(!in_a_string && !in_a_char && *scout == '(') ++in_arg_scope;
+            else if(!in_a_string && !in_a_char && *scout == ')') --in_arg_scope;
+            else if(!in_a_string && !in_a_char && *scout == ',') arg_end = scout; // end of an argument
+            if(*scout == '\0' || in_arg_scope <= 0) break;
+            ++scout;
+          }
+          // splice in default args
+          // if fcn generated by declass.c, splice in default args 1 position 
+          // prior to the last arg (ie whats being passed to the "*this" ptr for methods)
+          // => declass.c only generates fcns for user-def'd methods & macros for all else,
+          //    thus any instances prefixed w/ "DC_" can be safley assumed to contain a "this"
+          //    ptr at the end of the args list to splice default arg vals in front of
+          if(IS_DECLASS_GENERATED) {
+            while(r != arg_end + 1) *w++ = *r++; // copy args up to right before value being passed as '*this'
+            dflt_args_left = unique_dflt_fcns[i].total_dflts[j] - unique_dflt_fcns[i].arg_sizes[j] + arg_total;
+            for(k = dflt_args_left; k < unique_dflt_fcns[i].total_dflts[j]; ++k) {
+              if(k > dflt_args_left) *w++ = ',';
+              strcpy(w, unique_dflt_fcns[i].dflt_vals[j][k]);
+              w += strlen(w);
+            }
+            next_arg = r; // confirm not at the end of the arg list prior to splicing in another ','
+            while(IS_WHITESPACE(*next_arg)) ++next_arg;
+            if(*next_arg != ')') *w++ = ','; // insert ',' btwn dflt value & '*this'
+            while(r != scout) *w++ = *r++; // copy '*this' arg value
+          } else { // NOT a declass.c generated fcn
+            while(r != scout) *w++ = *r++; // copy args up to right before closing ')'
+            dflt_args_left = unique_dflt_fcns[i].total_dflts[j] - unique_dflt_fcns[i].arg_sizes[j] + arg_total;
+            for(k = dflt_args_left; k < unique_dflt_fcns[i].total_dflts[j]; ++k) {
+              if(arg_total > 0 || k > dflt_args_left) *w++ = ',';
+              strcpy(w, unique_dflt_fcns[i].dflt_vals[j][k]);
+              w += strlen(w);
+            }
+          }
+          *w++ = *r++; // copy closing ')' of args list
+          break;
+        }
+      }
+      // if DID find a valid matching dflt fcns (already prefixed it if overloaded above, thus force the next loop iteration)
+      if(i < unique_dflt_fcns_size && *r != '\0') {
+        *w++ = *r++;
+        continue;
+      }
+      
+
+      // -:- PARSE FOR OVERLOADS -:- 
+      // check for potential fcn/macro overload
       for(i = 0; i < overload_fmacs_size; ++i) {
         // potential overloaded instance
         if(is_at_substring(r, overload_fmacs[i].name) && !VARCHAR(*(r+strlen(overload_fmacs[i].name)))) {
@@ -3694,23 +4062,32 @@ void prefix_overloaded_instances(char *read, char *write) {
           scout = r;
           while(VARCHAR(*scout))       ++scout; // skip past name
           while(IS_WHITESPACE(*scout)) ++scout; // skip past optional whitespace btwn name && '('
+          
           // overload name invocation w/o any args passed btwn "()" afterwards -- COLA names
           // can NEVER to redefined/reassigned to ANY other variables in ANY other scope
-          if(*scout != '(')
-            throw_fatal_error_non_functional_invocation_of_overloaded_name(overload_fmacs[i].name);
-          arg_total = count_args(scout, overload_fmacs[i].name);
+          if(*scout != '(') {
+            FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+            get_invalid_code_snippet(read, scout, bad_code_buffer);
+            throw_fatal_error_non_functional_invocation_of_overload_or_dflt_name(overload_fmacs[i].name, bad_code_buffer, __LINE__);
+          }
+          arg_total = count_args(scout, overload_fmacs[i].name, false, i);
+          
           // confirm an overload instance with "arg_total" args was detected earlier
           for(j = 0; j < overload_fmacs[i].arg_sizes_length; ++j)
             if(arg_total == overload_fmacs[i].arg_sizes[j])
               break;
+
           // if overloaded instance invocation has an undefined # of args wrt "overload_fmacs",
           // ie no matching global definition/declaration/prototype found to couple w/ invocation
-          if(j == overload_fmacs[i].arg_sizes_length)
-            throw_fatal_error_undefined_arg_length_invocation(overload_fmacs[i].name, arg_total);
+          if(j == overload_fmacs[i].arg_sizes_length) {
+            FLOOD_ZEROS(bad_code_buffer, BAD_CODE_BUFFER_LENGTH);
+            get_invalid_code_snippet(read, scout, bad_code_buffer);
+            throw_fatal_error_undefined_arg_length_invocation(overload_fmacs[i].name, arg_total, bad_code_buffer, __LINE__);
+          }
+
           // prefix overloaded fcn/macro instance's name w/ reserved header & arg number
           sprintf(w, "DC__%d_%s", arg_total, overload_fmacs[i].name);
-          w += strlen(w);
-          r = scout;
+          w += strlen(w), r = scout;
           break;
         }
       }
@@ -3719,4 +4096,166 @@ void prefix_overloaded_instances(char *read, char *write) {
       *w++ = *r++;
   }
   *w = '\0';
+}
+
+/******************************************************************************
+* DEFAULT VALUE "unique_dflt_fcns" (HAS DFLT FCN INSTANCES) STRUCT HELPER FCNS
+******************************************************************************/
+
+// checks whether same fcn name already in "unique_dflt_fcns"
+bool name_not_in_unique_dflt_fcns(char *name) {
+  for(int i = 0; i < unique_dflt_fcns_size; ++i) 
+    if(strcmp(unique_dflt_fcns[i].name, name) == 0) return false;
+  return true;
+}
+
+// returns idx of fcn arg-defaulted fcn instance if instance doesn't already have 
+// "all_dflt_fcns[all_dflt_fcns_idx].total_args" in unique_dflt_fcns's "arg_sizes[]", & returns 
+// -1 if already found (ie if already stored its name & arg # instance from a prototype)
+int unique_dflt_fcns_instance_idx(int all_dflt_fcns_idx) {
+  for(int j = 0, k; j < unique_dflt_fcns_size; ++j) 
+    if(strcmp(unique_dflt_fcns[j].name, all_dflt_fcns[all_dflt_fcns_idx].fcn_name) == 0) {
+      // search instance's arg lengths for "all_dflt_fcns[all_dflt_fcns_idx].total_args"
+      for(k = 0; k < unique_dflt_fcns[j].arg_sizes_length; ++k)
+        if(all_dflt_fcns[all_dflt_fcns_idx].total_args == unique_dflt_fcns[j].arg_sizes[k]) break;
+      // if arg count not found, return instance idx to 
+      // add # of args as a new overload to "unique_dflt_fcns" instance's "arg_sizes[]"
+      return (k == unique_dflt_fcns[j].arg_sizes_length) ? j : -1;
+    }
+  return -1; 
+}
+
+// returns the # of dflt'd args for the total # of args instance in "unique_dflt_fcns[unique_dflt_fcns_idx]"
+int total_dflts_for_ARG_SIZE_fcn_instance_in_UNIQUE_DFLT_FCNS(int arg_size, int unique_dflt_fcns_idx) {
+  for(int i = 0; i < unique_dflt_fcns[unique_dflt_fcns_idx].arg_sizes_length; ++i) // for each overloaded & dflt'd instance's arg length
+    if(unique_dflt_fcns[unique_dflt_fcns_idx].arg_sizes[i] == arg_size) // if same number of args, found the fcn instance
+      return unique_dflt_fcns[unique_dflt_fcns_idx].total_dflts[i]; // return how many dflt'd arg values the fcn instance has
+  return 0;
+}
+
+/******************************************************************************
+* DEFAULT VALUE FILTER FCN FROM "ALL_DFLT_FCNS" INTO "UNIQUE_DFLT_FCNS" STRUCT
+******************************************************************************/
+
+// convert "all_dflt_fcns" struct to "unique_dflt_fcns" struct (disregarding non-defaulted fcn instances)
+void filter_defaulted_fcns_from_ALL_DFLT_FCNS_to_UNIQUE_DFLT_FCNS() {
+  int i, j, dflts_idx, per_fcn_idx;
+  for(i = 0; i < all_dflt_fcns_size; ++i) {
+    if(all_dflt_fcns[i].total_dflts > 0 && name_not_in_unique_dflt_fcns(all_dflt_fcns[i].fcn_name)) {
+      // new function name w/ dflt args instance
+      strcpy(unique_dflt_fcns[unique_dflt_fcns_size].name, all_dflt_fcns[i].fcn_name);       // copy new fcn name
+      unique_dflt_fcns[unique_dflt_fcns_size].arg_sizes[0] = all_dflt_fcns[i].total_args;    // copy # of total args
+      unique_dflt_fcns[unique_dflt_fcns_size].arg_sizes_length = 1; // 1st instance of arg list size
+      unique_dflt_fcns[unique_dflt_fcns_size].total_dflts[0] = all_dflt_fcns[i].total_dflts; // copy # of defaulted args
+      for(j = 0; j < all_dflt_fcns[i].total_dflts; ++j) { // copy default arg values & idxs
+        strcpy(unique_dflt_fcns[unique_dflt_fcns_size].dflt_vals[0][j], all_dflt_fcns[i].dflt_vals[j]);
+        unique_dflt_fcns[unique_dflt_fcns_size].dflt_idxs[0][j] = all_dflt_fcns[i].dflt_idxs[j];
+      }
+      ++ unique_dflt_fcns_size;
+    } else if(all_dflt_fcns[i].total_dflts && (dflts_idx = unique_dflt_fcns_instance_idx(i)) != -1) {
+      // existing function name w/ dflt args has a new arg-length overload instance
+      per_fcn_idx = unique_dflt_fcns[dflts_idx].arg_sizes_length;
+      unique_dflt_fcns[dflts_idx].arg_sizes[per_fcn_idx] = all_dflt_fcns[i].total_args;    // copy # of total args
+      unique_dflt_fcns[dflts_idx].total_dflts[per_fcn_idx] = all_dflt_fcns[i].total_dflts; // copy # of defaulted args
+      for(j = 0; j < all_dflt_fcns[i].total_dflts; ++j) { // copy default arg values & idxs
+        strcpy(unique_dflt_fcns[dflts_idx].dflt_vals[per_fcn_idx][j], all_dflt_fcns[i].dflt_vals[j]);
+        unique_dflt_fcns[dflts_idx].dflt_idxs[per_fcn_idx][j] = all_dflt_fcns[i].dflt_idxs[j];
+      }
+      ++ unique_dflt_fcns[dflts_idx].arg_sizes_length;
+    }
+  }
+}
+
+/******************************************************************************
+* DEFAULT VALUE FCNS CONFIRMING DFLT != PRIOR NON-DFLT, IN MACRO, OR AMBIGUOUS 
+******************************************************************************/
+
+// overloaded & dflt'd fcns must not be ambiguous, IE overload definitions must satisfy 1 of the following: 
+//   (1) an overload's # of non-default args must exceed the # of cumulative
+//       args (both dflt & not) of all other overloaded instances
+//   (2) an overload's # of cumulative args (both dflt & not) must be less
+//       than the # of non-default args of all other overloaded instances
+bool ambiguous_overload(int overload_fmacs_dflts, int overload_fmacs_arg_size, int unique_dflt_fcns_arg_size, int unique_dflt_fcns_dflts) {
+  int overload_fmacs_nondflts   = overload_fmacs_arg_size - overload_fmacs_dflts;
+  int unique_dflt_fcns_nondflts = unique_dflt_fcns_arg_size - unique_dflt_fcns_dflts;
+  bool more_nondflt_args_than_total_args = (overload_fmacs_nondflts > unique_dflt_fcns_arg_size);
+  bool less_total_args_than_nondflt_args = (overload_fmacs_arg_size < unique_dflt_fcns_nondflts);
+  return !(more_nondflt_args_than_total_args || less_total_args_than_nondflt_args);
+}
+
+// confirm no ambigious overloaded definitions wrt assigned default values causing indeterminate fcn invocations
+void confirm_no_ambiguous_overloaded_default_values() {
+  int overload_fmacs_idx = 0, unique_dflt_fcns_idx, i, j;
+  int overload_fmacs_total_dflts;   // # of dflt args for an overload instance
+  int unique_dflt_fcns_total_dflts; // # of dflt args for a defaulted instance
+  int overload_fmacs_arg_size;      // # of total args for an overload instance
+  int unique_dflt_fcns_arg_size;    // # of total args for a defaulted instance
+  for(; overload_fmacs_idx < overload_fmacs_size; ++overload_fmacs_idx) // for each overload
+    for(unique_dflt_fcns_idx = 0; unique_dflt_fcns_idx < unique_dflt_fcns_size; ++unique_dflt_fcns_idx) { // for each defaulted fcn
+      #define current_fmac overload_fmacs[overload_fmacs_idx]
+      #define current_dflt unique_dflt_fcns[unique_dflt_fcns_idx]
+      // if at least 1 overload instance also has a dflt arg value
+      if(strcmp(current_fmac.name, current_dflt.name) == 0)  
+        /* at this point exact same arg-length fcn duplicates would have triggered a "duplicate args length" 
+         * fatal error, thus all arg lengths -- defaulted or not -- are unique */
+        for(i = 0; i < current_fmac.arg_sizes_length; ++i) // for each overload instance (via the differnt unique arg lengths registered)
+          for(j = 0; j < current_dflt.arg_sizes_length; ++j) { // for each dflt instance
+            // same fcn name & arg length == same fcn instance
+            if(current_fmac.arg_sizes[i] == current_dflt.arg_sizes[j]) continue; // don't compare a fcn to itself
+            overload_fmacs_total_dflts = total_dflts_for_ARG_SIZE_fcn_instance_in_UNIQUE_DFLT_FCNS(current_fmac.arg_sizes[i], unique_dflt_fcns_idx);
+            overload_fmacs_arg_size    = current_fmac.arg_sizes[i];
+            unique_dflt_fcns_arg_size     = current_dflt.arg_sizes[j];
+            unique_dflt_fcns_total_dflts  = current_dflt.total_dflts[j];
+            
+            if(ambiguous_overload(overload_fmacs_total_dflts, overload_fmacs_arg_size, unique_dflt_fcns_arg_size, unique_dflt_fcns_total_dflts))
+              throw_fatal_error_ambiguous_overload(current_fmac.name, overload_fmacs_total_dflts, 
+                overload_fmacs_arg_size, unique_dflt_fcns_arg_size, unique_dflt_fcns_total_dflts, __LINE__);
+          }
+    }
+  #undef current_fmac
+  #undef current_dflt
+}
+
+// confirms any/all dflt values were defined at the end of the fcn's arg list & not in a macro
+void confirm_valid_default_values_position(int arg_total, char *function_name, bool is_a_macro) {
+  #define current_dflt all_dflt_fcns[all_dflt_fcns_size] 
+  if(current_dflt.total_dflts == 0) return; // no defaulted values found
+  // declass.c methods have '*this' spliced as their last arg (unbeknownst to the user), 
+  // thus enable default values args 1 position prior to the end of the args list rather than 
+  // the very end (as opposed to every other non-"DC_" prefixed function w/ dflt values)
+  bool IS_DECLASS_GENERATED = is_at_substring(function_name, "DC_"); 
+  const int earliest_dflt_idx = arg_total - current_dflt.total_dflts - IS_DECLASS_GENERATED; 
+  for(int i = 0; i < current_dflt.total_dflts; ++i)
+    if(current_dflt.dflt_idxs[i] < earliest_dflt_idx || is_a_macro)
+      throw_fatal_error_invalid_default_arg_value(function_name, is_a_macro, __LINE__);
+  #undef current_dflt
+}
+
+/******************************************************************************
+* DEFAULT VALUE STORING IN "all_dflt_fcns" & WHITING-OUT FROM ARG LIST FUNCTION
+******************************************************************************/
+
+// given a ptr in an function's arg list, reads & stores default value in "all_dflt_fcns" struct,
+// returns length of the default value + 1 to whitespace the "= <dfltVal>" in the args list
+int store_dflt_value(int current_arg_idx, char *p) {
+  int idx = 0, dflt_val_length = 1; // "1" to account for the '='
+  char *scout = p + 1;
+  // more readble to repn. current "fcn" dflt-tracking instance in "all_dflt_fcns"
+  #define current_dflt all_dflt_fcns[all_dflt_fcns_size] 
+  FLOOD_ZEROS(current_dflt.dflt_vals[current_arg_idx], MAX_ARGS_PER_FCN);
+  // store defaulted arg's idx relative to ithe fcn's entire args list
+  current_dflt.dflt_idxs[current_dflt.total_dflts] = current_arg_idx; 
+  // skip optional whitespace btwn '=' && dflt value
+  while(IS_WHITESPACE(*scout)) ++scout, ++dflt_val_length; 
+  // copy default value
+  while(*scout != '\0' && *scout != ',' && *scout != ')')
+    current_dflt.dflt_vals[current_dflt.total_dflts][idx++] = *scout++, ++dflt_val_length; 
+  current_dflt.dflt_vals[current_dflt.total_dflts][idx] = '\0';
+  if(idx > 0) { // trim possible whitespaces following the default value
+    scout = &current_dflt.dflt_vals[current_dflt.total_dflts][idx-1];
+    while(IS_WHITESPACE(*scout)) *scout-- = '\0'; 
+  }
+  ++ current_dflt.total_dflts;
+  #undef current_dflt
+  return dflt_val_length;
 }
