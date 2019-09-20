@@ -1,6 +1,6 @@
 # Declass-C
 ## Declassifier Enables Classes in C by Pre-Preprocessing & Compiling Files!
-#### **_Ctors/Dtors, Member Default Values/Allocation, Methods, Object Arrays/Ptrs/Containment, Smart Ptrs, Cola Polymorphism, and more!_**
+#### **_Ctors/Dtors, Member Default Values/Allocation, Methods, Object Arrays/Ptrs/Containment, Smart Ptrs, Cola Polymorphism, Cola Default Argument Values, and more!_**
 -------------------------------------------------------------------------
 
 ## Using the Declassifier:
@@ -13,6 +13,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Show Class-Object & Cola-Overloading Data via_ `-l`_:_ `$ ./declass -l yourFile.c`</br>
 * _Save Temp File Made Prior to Passing File to_ `cola.c` _via_ `-save-temps`_:_ `$ ./declass -save-temps yourFile.c`</br>
 * _No Auto-Compile (like_ "[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)") _via_ `-no-compile`_:_ `$ ./declass -no-compile yourFile.c`</br>
+* _Ask client to quit or continue for fatal parsing errors (rather than self-terminate) via_ `-mortal-errors`_:_</br> `$ ./declass -mortal-errors yourFile.c`</br>
 * _Can Combine Any of the Above, so Long as_ `yourFile.c` _is the Last Arg:_
   * ***IE VALID:*** `$ ./declass -no-compile -l -save-temps yourFile.c`
   * ***INVALID:*** `$ ./declass -no-compile -l yourFile.c -save-temps`
@@ -72,19 +73,43 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * `cola.c` _(C Overloaded Length Arguments) parser is automatically applied to converted files prior to compiling_
 * _Allows for fcn & macro polymorphism (where 2+ share the same name) so long as they take different #'s of args!_
   * _thus "ctor"s_ **CAN** _be overloaded but "dtor"s_ **CANNOT**
+* _Also allows default argument values for functions and methods (**not macros!**)!_
+  * _Args w/ default values must be listed **last** in a fcn/method's arg list!_</br>
+  * _Use the **["ODV GUIDELINE"](#cola-cs-odv-guideline-to-combining-overloads-w-default-arg-values)** below to help avoid overloading ambiguities when combined with default values!_
 * _Disable_ "`cola.c`"_'s default application via_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)
-#### _Cola-C's 6 Caveats (wrt `declass.c`'s integration):_
+#### _Cola-C's 9 Caveats (wrt `declass.c`'s integration):_
 ```c
 /*****************************************************************************
- *                         -:- COLA.C 6 CAVEATS -:-                         *
- *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
- *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
+ *                         -:- COLA.C 9 CAVEATS -:-                         *
+ *   (*) NOTE: a "COLA INSTANCE" = a fcn/macro overload OR fcn w/ dflt vals *
+ *   (0) NO VARIADIC COLA INSTANCES                                         *
+ *   (1) NO COLA INSTANCES W/IN CONDITIONAL PREPROCESSOR DIRECTIVES         *
  *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
- *   (2) NO FCN PTRS POINTING TO OVERLOADED FCNS                            *
+ *   (2) NO FCN PTRS POINTING TO COLA INSTANCES                             *
  *       (*) can't determine overloaded arg # from only overloaded fcn name *
- *   (3) NO REDEFINING OVERLOADED NAME AS A DIFFERENT VAR NAME IN ANY SCOPE *
+ *   (3) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
  *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
- *   (5) ONLY GLOBALLY/CLASS-MEMBER DEFINED FCNS/MACROS CAN BE OVERLOADED   *
+ *   (5) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
+ *   (6) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
+ *   (7) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
+ *       (*) args w/ default values must always by last in a fcn's arg list *
+ *   (8) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
+ *       (*) if a fcn proto has default vals but its defn doesn't (or vise  *
+ *           versa) fcn will be treated as if both had the default vals     *
+ *       (*) if a fcn proto has DIFFERENT default vals from its defn, the   *
+ *           fcn's proto default vals are treated as the only default vals  *
+ *****************************************************************************/
+```
+#### _Cola-C's "ODV GUIDELINE" to Combining (O)verloads w/ (D)efault Arg (V)alues:_
+* _Defines how to mix arg-number based overloading w/ default values w/o ambiguity_</br>
+```c
+/*****************************************************************************
+ *  -:- ODV GUIDELINE TO COMBINE (O)VERLOADS W/ (D)EFAULT ARG (V)ALUES -:-  *
+ * >> overload definitions must satisfy 1 of the following:                 *
+ *    (1) an overload's # of non-dflt args must exceed the # of cumulative  *
+ *        args (both dflt & not) of all other overloaded instances          *
+ *    (2) an overload's # of cumulative args (both dflt & not) must be less *
+ *        than the # of non-dflt args of all other overloaded instances     *
  *****************************************************************************/
 ```
 --------------
@@ -284,7 +309,8 @@ int main() {
 --=[ TOTAL CLASSES: 1 ]=--=[ TOTAL OBJECTS: 2 ]=--
 
 CLASS No1, Stack:
- L_ MEMBERS: 3
+ L_ MEMBERS: 4
+ |  L_ *object_has_been_destroyed_flag
  |  L_ *arr (( ALLOCATED MEMORY ))
  |  L_ len
  |  L_ max
