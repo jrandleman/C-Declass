@@ -1296,7 +1296,7 @@ void mk_initialization_brace(char brace[], int class_index) {
       else if(classes[class_index].member_is_array[j] || (j > 1 && classes[class_index].member_names[j-1][0] == 0)
         || (classes[class_index].member_object_class_name[j][0] != 0 && !classes[class_index].member_is_pointer[j]))
           sprintf(p, "{0},"); // wrap empty (non-ptr) array/object/struct value in braces
-      else if((j > 1 && classes[class_index].member_names[j-1][0] != 0) || j == 0) 
+      else if((j > 1 && classes[class_index].member_names[j-1][0] != 0) || j == 1) 
         sprintf(p, "0,"); 
     } else {
       if(is_a_dummy_ctor(classes[class_index].member_values[j])) // prefix dummy ctor names as needed
