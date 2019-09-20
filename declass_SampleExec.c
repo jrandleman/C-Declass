@@ -13,7 +13,7 @@
 // #define DECLASS_NDEBUG       // disables all smrtptr.h's "smrtassert()" statements
 // #define DECLASS_NCOMPILE     // declass.c declassifies but DOESN'T GCC compile converted file
 // #define DECLASS_NC11         // GCC compiles declassified file w/o "-std=c11"
-// #define DECLASS_NCOLA        // prevents declass.c from passing the converted file to cola.c for arg # overloads
+// #define DECLASS_NCOLA        // prevents declass.c from passing converted file to cola.c for arg # overloads & dflt fcn values
 
 // users can list custom object memory allocation fcns to be recognized
 // by declass.c in implementing constructors correctly for object ptrs
@@ -48,7 +48,7 @@
  *       (*) NOTE:     let "->" denote "can access the members of"          *
  *       (*) IE:       suppose classes c1, c2 & c3: w/ c1 in c2 & c2 in c3. *
  *                     c3 -> c2, and c2 -> c1, BUT NOT c3 -> c1.            *
- *       (*) RATHER:   (1) include a c1 object as a member in c3            *
+ *       (*) RATHER:   (1) include a c1 object as a member in c3, OR:       *
  *                     (2) mk c2 methods invoking c1 methods: c3 interface  *
  *   (9) ONLY BINARY SINGLE-LINE CONDITIONAL ("?:") OBJECT RETURNS:         *
  *       (*) IE NOT:   "return case ? obj : case2 ? obj2 : obj3;"           *
@@ -56,23 +56,42 @@
  *****************************************************************************
  *                       -:- DECLASS.C & SMRTPTR.H -:-                      *
  *    SMRTPTR.H LIBRARY IS DEFAULT INCLUDED, W/ IMPROVED MALLOC, CALLOC,    *
- *    REALLOC, & FREE FUNCTIONS AS WELL AS GARBAGE COLLECTION               *
- *      (*) "smrtptr.h"'s fcns same as stdlib's all prefixed with "smrt"    *
+ *    REALLOC, FREE, & ASSERT FUNCTIONS AS WELL AS GARBAGE COLLECTION       *
+ *      (*) "smrtptr.h" fcns same as stdlib/assert's all prefixed w/ "smrt" *
  *****************************************************************************
  *                        -:- DECLASS.C & COLA.C -:-                        *
- *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER IS DFLT APPLIED TO CONVERTED *
- *    FILES PRIOR COMPILING - ALLOWS FCN & MACRO POLYMORPHISM (2+ SHARE THE *
- *    SAME NAME) SO LONG AS THEY TAKE DIFFERENT NUMBERS OF ARGS!            *
- *      (*) thus "CTOR"s CAN be overloaded but "DTOR"s CANNOT               *
- *                         -:- COLA.C 6 CAVEATS -:-                         *
- *   (0) NO OVERLOADED VARIADIC FCNS/MACROS                                 *
- *   (1) NO OVERLOADS W/IN CONDITIONAL PREPROCESSOR DIRECTIVES              *
+ *    COLA.C (C OVERLOADED LENGTH ARGS) PARSER DFLT APPLIED PRIOR COMPILING *
+ *      => ALLOWS FCN/MACRO POLYMORPHISM (2+ W/ SAME NAME) SO LONG AS THEY  *
+ *         TAKE DIFFERENT NUMBERS OF ARGS AS PARAMETERS!                    *
+ *           (*) thus "CTOR"s CAN be overloaded but "DTOR"s CANNOT          *
+ *      => ALSO ENABLES DEFAULT FCN/METHOD ARG VALUES!                      *
+ *      => "ODV" GUIDLINE BELOW HELPS AVOID OVERLOAD AMBIGUITY W/ DFLT VALS *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  *
+ *                         -:- COLA.C 9 CAVEATS -:-                         *
+ *   (*) NOTE: a "COLA INSTANCE" = a fcn/macro overload OR fcn w/ dflt vals *
+ *   (0) NO VARIADIC COLA INSTANCES                                         *
+ *   (1) NO COLA INSTANCES W/IN CONDITIONAL PREPROCESSOR DIRECTIVES         *
  *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
- *   (2) NO FCN PTRS POINTING TO OVERLOADED FCNS                            *
+ *   (2) NO FCN PTRS POINTING TO COLA INSTANCES                             *
  *       (*) can't determine overloaded arg # from only overloaded fcn name *
- *   (3) NO REDEFINING OVERLOADED NAME AS A DIFFERENT VAR NAME IN ANY SCOPE *
+ *   (3) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
  *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
- *   (5) ONLY GLOBALLY/CLASS-MEMBER DEFINED FCNS/MACROS CAN BE OVERLOADED   *
+ *   (5) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
+ *   (6) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
+ *   (7) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
+ *       (*) args w/ default values must always by last in a fcn's arg list *
+ *   (8) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
+ *       (*) if a fcn proto has default vals but its defn doesn't (or vise  *
+ *           versa) fcn will be treated as if both had the default vals     *
+ *       (*) if a fcn proto has DIFFERENT default vals from its defn, the   *
+ *           fcn's proto default vals are treated as the only default vals  *
+ * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  *
+ *  -:- ODV GUIDELINE TO COMBINE (O)VERLOADS W/ (D)EFAULT ARG (V)ALUES -:-  *
+ * >> overload definitions must satisfy 1 of the following:                 *
+ *    (1) an overload's # of non-dflt args must exceed the # of cumulative  *
+ *        args (both dflt & not) of all other overloaded instances          *
+ *    (2) an overload's # of cumulative args (both dflt & not) must be less *
+ *        than the # of non-dflt args of all other overloaded instances     *
  *****************************************************************************
  *                     -:- DECLASS.C CTORS & DTORS -:-                      *
  *   FORMATTING:                                                            *
@@ -126,13 +145,16 @@
  *   (2) IMMORTAL OBJECTS CAN ONLY BE DTOR'D IF EXPLICITLY BY THE USER, IE: *
  *       (*) immortal object "oName" only destroyed if "~oName();" invoked  *
  *****************************************************************************
- *                    -:- DECLASS.C 3 CMD LINE FLAGS -:-                    *
+ *                    -:- DECLASS.C 4 CMD LINE FLAGS -:-                    *
  *   (0) SHOW CLASS-OBJECT & COLA-OVERLOADING DATA:                         *
  *         (*) "-l": $ ./declass -l yourFile.c                              *
  *   (1) SAVE TEMP FILE MADE PRIOR TO PASSING CONVERTED FILE TO COLA.C:     *
  *         (*) "-save-temps": $ ./declass -save-temps yourFile.c            *
  *   (2) DON'T AUTO-COMPILE CONVERTED FILE (like #define DECLASS_NCOMPILE)  *
  *         (*) "-no-compile": $ ./declass -no-compile yourFile.c            *
+ *   (3) MAKE FATAL ERRORS ASK USER WHETHER TO QUIT (RATHER THAN AUTOMATIC) *
+ *         (*) DISCOURAGED last-resort way 2 debug, but errors 4 a reason!  *
+ *         (*) "-mortal-errors": $ ./declass -mortal-errors yourFile.c      *
  *   ->> Combine any of the above, so long as "yourFile.c" is the last arg  *
  *         (*) VALID:   $ ./declass -no-compile -l -save-temps yourFile.c   *
  *         (*) INVALID: $ ./declass -no-compile -l yourFile.c -save-temps   *
@@ -148,7 +170,7 @@
  *     (6) "#define DECLASS_NDEBUG"       => DISABLE "SMRTPTR.H" SMRTASSERT *
  *     (7) "#define DECLASS_NCOMPILE"     => ONLY CONVERT DON'T GCC COMPILE *
  *     (8) "#define DECLASS_NC11"         => GCC COMPILE W/O "-std=c11"     *
- *     (9) "#define DECLASS_NCOLA"        => DISABLE COLA.C OVERLOAD PARSER *
+ *     (9) "#define DECLASS_NCOLA"        => DISABLE COLA.C OVERLOADS/DFLTS *
  *   DEFINING CUSTOM MEMORY ALLOCATION FUNCTIONS:                           *
  *     (0) declass.c relies on being able to identify memory allocation     *
  *         fcns to aptly apply dflt vals (not assigning garbage memory)     *
@@ -158,7 +180,6 @@
  *         (*) NOTE: ASSUMES ALL ALLOC FCNS RETURN "NULL" OR EXIT ON FAIL   *
  *     (2) list alloc fcn names after a "#define DECLASS_ALLOC_FCNS" macro  *
  *****************************************************************************/
-
 
 class Student {
   // note that class member values default to 0 unless otherwise indicated, &
@@ -207,11 +228,16 @@ class Student {
   }
 
   // cola.c's default inclusion in declass.c (unless "#define DECLASS_NCOLA" is detected)
-  // allows functions & macros to be overloaded based on how many arguments they take
-  // => thus this ctor of 1 arg overloads the above ctor of 3 args
+  // allows functions & macros to be overloaded based on how many arguments they take, & for 
+  // all functions & methods (not macros!) to give their arguments default values
+  // => thus this ctor of 2 args overloads the above ctor of 3 args
+  // => NOTE: args w/ default values must be listed last in a function/method's arg list, 
+  //    "Student(char *userName = "Default Student Name", float gpa)" would throw an error here
   // => dtors can NEVER be COLA (C Overloaded Length Args) overloaded since they never have ANY args
-  Student(char *userName) {
+  Student(float gpa, char *userName = "\"Default Student Name\"") {
     assignName(userName);
+    assignId(1000000);
+    assignGpa(gpa);
   }
 
   // format a class dtor like a ctor, except w/ a '~' prefix (unary 'not' operator)
@@ -380,10 +406,17 @@ int main() {
 
   // Single object COLA-overloaded constructor (overloading enabled via my declass.c-embedded cola.c parser)
   // => note that overloading fcns/macros by their # of args will NOT work if "#define DECLASS_NCOLA" is detected
-  printf("\nWorking with an single \"Student\" object initialized via its constructor:\n");
-  Student luluR("Louis Randleman"); // invokes the object's class ctor variant accepting 1 arg rather than 3
+  printf("\nWorking with an single \"Student\" object initialized via its overloaded constructor:\n");
+  Student luluR(5.0, "Louis Randleman"); // invokes the object's class ctor variant accepting 2 args rather than 3
   printf("\t");
   luluR.show();
+
+
+  // Single object COLA-overloaded ctor that ALSO uses a default value (again via my declass.c-embedded cola.c parser)
+  printf("\nWorking with an \"Student\" object constructed via an overloaded ctor w/ a default \"name\" arg value:\n");
+  Student charmR(5.5); // invokes the object's class ctor accepting 2 args while using the 2nd arg's default value
+  printf("\t");
+  charmR.show();
 
 
   // Single object "dummy" constructor
