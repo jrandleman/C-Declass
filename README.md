@@ -23,7 +23,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 **2.** _Unless deactivated, see_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)_, programs are then passed to my_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _polymorphic parser_</br>
 **3.** _Converted programs are automatically compiled in_ `C11`_'s standard via_ `GCC` _as a binary file w/ the original name_</br>
   * `yourFile.c`_=declass=>_`yourFile_DECLASS_PRECOLA.c`_=cola=>_`yourFile_DECLASS.c`_=compile=>_`yourFile`
-  * [Macro Flags 7-8](#declass-cs-pre-preprocessor-specialization-macro-flags) _can disable both the_ `C11` _standard as well as automatic compiling as a whole_</br></br>
+  * [Macro Flags 7-8](#declass-cs-pre-preprocessor-specialization-macro-flags) _can disable both the_ `C11` _standard as well as automatic compiling as a whole_
 ### References:
 * _Provided_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _demos classes, and_ [declass_SampleExec_DECLASS.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec_DECLASS.c) _shows conversion_
 * _Adhere to the_ [10 Caveats](#declass-cs-10-caveats-straight-from-declassc) _& use_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _as an operations reference!_
