@@ -67,20 +67,18 @@
  *      => ALSO ENABLES DEFAULT FCN/METHOD ARG VALUES!                      *
  *      => "ODV" GUIDLINE BELOW HELPS AVOID OVERLOAD AMBIGUITY W/ DFLT VALS *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  *
- *                         -:- COLA.C 9 CAVEATS -:-                         *
+ *                         -:- COLA.C 8 CAVEATS -:-                         *
  *   (*) NOTE: a "COLA INSTANCE" = a fcn/macro overload OR fcn w/ dflt vals *
  *   (0) NO VARIADIC COLA INSTANCES                                         *
- *   (1) NO COLA INSTANCES W/IN CONDITIONAL PREPROCESSOR DIRECTIVES         *
- *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
- *   (2) NO FCN PTRS POINTING TO COLA INSTANCES                             *
+ *   (1) NO FCN PTRS POINTING TO COLA INSTANCES                             *
  *       (*) can't determine overloaded arg # from only overloaded fcn name *
- *   (3) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
- *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
- *   (5) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
- *   (6) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
- *   (7) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
+ *   (2) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
+ *   (3) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
+ *   (4) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
+ *   (5) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
+ *   (6) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
  *       (*) args w/ default values must always by last in a fcn's arg list *
- *   (8) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
+ *   (7) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
  *       (*) if a fcn proto has default vals but its defn doesn't (or vise  *
  *           versa) fcn will be treated as if both had the default vals     *
  *       (*) if a fcn proto has DIFFERENT default vals from its defn, the   *
@@ -179,6 +177,22 @@
  *         to be recognized by declass.c at the top of their program        *
  *         (*) NOTE: ASSUMES ALL ALLOC FCNS RETURN "NULL" OR EXIT ON FAIL   *
  *     (2) list alloc fcn names after a "#define DECLASS_ALLOC_FCNS" macro  *
+ *****************************************************************************
+ *                     -:- DECLASS.C & HEADER FILES -:-                     *
+ *   DENOTING HEADER FILES TO ALSO BE PARSED BY DECLASS.C:                  *
+ *     (0) name must be prefixed w/ "DECLASS_H_" or "declass_h_"            *
+ *     (1) name must contain the ".h" file extension                        * 
+ *         (*) IE: #include "DECLASS_H_yourHeader.h"                        *
+ *   IMPLEMENTATION:                                                        *
+ *     (0) declass.c supports including header files that already contain   *
+ *         classes (& arg # overloads/fcn dflt values if COLA not disabled) *
+ *     (1) thus can write 1 class for several files, reduces redundant code *
+ *     (2) as w/ a linker, header files are prepended to the main file to   *
+ *         simulate as if user wrote a monolithic code base                 *
+ *         (*) THUS HEADER FILES & MAIN FILE MUST CUMULATIVELY TAKE LESS    *
+ *             MEMORY THAN THE "MAX_FILESIZE" MACRO!                        *
+ *     (3) header files NOT prefixed "DECLASS_H_" or "declass_h_" will NOT  *
+ *         be prepended to the main codebase by declass.c                   *
  *****************************************************************************/
 
 class Student {
