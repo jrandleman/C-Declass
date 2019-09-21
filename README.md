@@ -79,23 +79,21 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * _Args w/ default values must be listed **last** in a fcn/method's arg list!_</br>
   * _Use the **["ODV GUIDELINE"](#cola-cs-odv-guideline-to-combining-overloads-w-default-arg-values)** below to help avoid overloading ambiguities when combined with default values!_
 * _Disable_ "`cola.c`"_'s default application via_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)
-#### _Cola-C's 9 Caveats (wrt `declass.c`'s integration):_
+#### _Cola-C's 8 Caveats (wrt `declass.c`'s integration):_
 ```c
 /*****************************************************************************
- *                         -:- COLA.C 9 CAVEATS -:-                         *
+ *                         -:- COLA.C 8 CAVEATS -:-                         *
  *   (*) NOTE: a "COLA INSTANCE" = a fcn/macro overload OR fcn w/ dflt vals *
  *   (0) NO VARIADIC COLA INSTANCES                                         *
- *   (1) NO COLA INSTANCES W/IN CONDITIONAL PREPROCESSOR DIRECTIVES         *
- *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
- *   (2) NO FCN PTRS POINTING TO COLA INSTANCES                             *
+ *   (1) NO FCN PTRS POINTING TO COLA INSTANCES                             *
  *       (*) can't determine overloaded arg # from only overloaded fcn name *
- *   (3) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
- *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
- *   (5) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
- *   (6) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
- *   (7) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
+ *   (2) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
+ *   (3) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
+ *   (4) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
+ *   (5) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
+ *   (6) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
  *       (*) args w/ default values must always by last in a fcn's arg list *
- *   (8) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
+ *   (7) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
  *       (*) if a fcn proto has default vals but its defn doesn't (or vise  *
  *           versa) fcn will be treated as if both had the default vals     *
  *       (*) if a fcn proto has DIFFERENT default vals from its defn, the   *
@@ -208,6 +206,20 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 #define DECLASS_ALLOC_FCNS // list custom alloc fcns here, as TOKENS not as STRINGS
 ```
 * _**Note:**_ **`declass.c`** _**assumes all allocation functions return**_ **`NULL`** _**or terminate the program upon failure!**_
+--------------
+## Creating Header Files to be Parsed by `declass.c`:
+### Overview:
+* `declass.c` _supports header files with classes &_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _overloading/default values!_
+* _Must be prefixed with_ `"DECLASS_H_"` _or_ `"declass_h_"`_, & have the_ `".h"` _file extension_
+* _Allows writing 1 class for several files, reducing redundant code_
+### Implementation:
+* _Header files are prepended to the main file for a monolithic code base_
+  * _Result must **cumulatively** be less bytes than the_ `MAX_FILESIZE` _(default 1 gigabyte) macro!_
+* _Headers **not** prefixed_ `"DECLASS_H_"` _or_ `"declass_h_"` _will **not** be prepended to main codebase by_ `declass.c`
+### Example:
+```c
+#include "DECLASS_H_yourHeader.h" // valid header
+```
 --------------
 ## A Simple Sample Stack Class:
 * _**Note**:_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _, has **much** more on object ctors/dtors, containment, arrays, ptrs, default memory allocation, struct/fcn-ptr members, smrtptr.h autonomous freeing, methods using "this" ptr, and more!_
