@@ -207,7 +207,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ```
 * _**Note:**_ **`declass.c`** _**assumes all allocation functions return**_ **`NULL`** _**or terminate the program upon failure!**_
 --------------
-## Creating Header Files to be Parsed by `declass.c`:
+## Creating Header Files To Be Parsed By `declass.c`:
 ### Overview:
 * `declass.c` _supports header files with classes &_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _overloading/default values!_
 * _Must be prefixed with_ `"DECLASS_H_"` _or_ `"declass_h_"`_, & have the_ `".h"` _file extension_
