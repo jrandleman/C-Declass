@@ -38,6 +38,9 @@
 #define MAX_DEFAULT_VALUE_LENGTH 251
 // max length any single label can have in the parsed file (name of fcn, variable, class, method, arg, etc)
 #define MAX_TOKEN_NAME_LENGTH 150
+// max # of "DECLASS_H_" header files a single file being parsed can include
+#define MAX_DECLASS_HEADER_FILES 300
+
 // -:- COLA.C MACROS -:-
 #define MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM 5000   // max # of macros & fcns parsed file can have
 #define MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE 100 // max # of COLA's per overloaded fcn/macro name
@@ -92,20 +95,18 @@
  *      => ALSO ENABLES DEFAULT FCN/METHOD ARG VALUES!                      *
  *      => "ODV" GUIDLINE BELOW HELPS AVOID OVERLOAD AMBIGUITY W/ DFLT VALS *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  *
- *                         -:- COLA.C 9 CAVEATS -:-                         *
+ *                         -:- COLA.C 8 CAVEATS -:-                         *
  *   (*) NOTE: a "COLA INSTANCE" = a fcn/macro overload OR fcn w/ dflt vals *
  *   (0) NO VARIADIC COLA INSTANCES                                         *
- *   (1) NO COLA INSTANCES W/IN CONDITIONAL PREPROCESSOR DIRECTIVES         *
- *       (*) IE NOT W/IN: #if, #ifdef, #ifndef, #elif, #else, & #endif      *
- *   (2) NO FCN PTRS POINTING TO COLA INSTANCES                             *
+ *   (1) NO FCN PTRS POINTING TO COLA INSTANCES                             *
  *       (*) can't determine overloaded arg # from only overloaded fcn name *
- *   (3) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
- *   (4) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
- *   (5) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
- *   (6) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
- *   (7) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
+ *   (2) NO REDEFINING COLA INSTANCE NAME TO OTHER VARS REGARDLESS OF SCOPE *
+ *   (3) NO OVERLOADED MACROS CAN EVER BE "#undef"'d                        *
+ *   (4) ONLY COLA INSTANCES DEFINED/PROTOTYPED GLOBALLY WILL BE RECOGNIZED *
+ *   (5) ONLY FUNCTIONS MAY BE ASSIGNED DEFAULT VALUES - NEVER MACROS!      *
+ *   (6) NO ARG W/ A DEFAULT VALUE MAY PRECEDE AN ARG W/O A DEFAULT VALUE   *
  *       (*) args w/ default values must always by last in a fcn's arg list *
- *   (8) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
+ *   (7) FCN PROTOTYPES TAKE PRECEDENT OVER DEFINITIONS WRT DEFAULT VALS    *
  *       (*) if a fcn proto has default vals but its defn doesn't (or vise  *
  *           versa) fcn will be treated as if both had the default vals     *
  *       (*) if a fcn proto has DIFFERENT default vals from its defn, the   *
@@ -204,7 +205,69 @@
  *         to be recognized by declass.c at the top of their program        *
  *         (*) NOTE: ASSUMES ALL ALLOC FCNS RETURN "NULL" OR EXIT ON FAIL   *
  *     (2) list alloc fcn names after a "#define DECLASS_ALLOC_FCNS" macro  *
+ *****************************************************************************
+ *                     -:- DECLASS.C & HEADER FILES -:-                     *
+ *   DENOTING HEADER FILES TO ALSO BE PARSED BY DECLASS.C:                  *
+ *     (0) name must be prefixed w/ "DECLASS_H_" or "declass_h_"            *
+ *     (1) name must contain the ".h" file extension                        * 
+ *   IMPLEMENTATION:                                                        *
+ *     (0) declass.c supports including header files that already contain   *
+ *         classes (& arg # overloads/fcn dflt values if COLA not disabled) *
+ *     (1) thus can write 1 class for several files, reduces redundant code *
+ *     (2) as w/ a linker, header files are prepended to the main file to   *
+ *         simulate as if user wrote a monolithic code base                 *
+ *         (*) THUS HEADER FILES & MAIN FILE MUST CUMULATIVELY TAKE LESS    *
+ *             MEMORY THAN THE "MAX_FILESIZE" MACRO!                        *
+ *     (3) header files NOT prefixed "DECLASS_H_" or "declass_h_" will NOT  *
+ *         be prepended to the main codebase by declass.c                   *
  *****************************************************************************/
+
+// COLA.C STRUCTS
+
+/* GLOBAL FILE FCN/MACRO & OVERLOADING TRACKING STRUCTURES */
+// holds all global fcn & macro def's found in file
+struct function_macro_instance {
+  char name[MAX_TOKEN_NAME_LENGTH]; // defined fcn/macro name
+  int args;            // number of args
+  bool overloaded;     // whether its overloaded
+  bool is_a_prototype; // whether is a function prototype
+  bool is_a_macro;     // whether is a functionlike macro
+} fmacs[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];
+int fmacs_size = 0;
+
+// holds function & macro overload instances, derived from "fmacs"
+struct function_macro_overload_instance {
+  char name[MAX_TOKEN_NAME_LENGTH]; // overoaded fcn/macro name
+  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE];   // different arg lengths per overload
+  int arg_sizes_length; // # of other overoaded fcn/macros w/ same name
+  bool is_a_macro[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // whether each overload is a functionlike macro
+} overload_fmacs[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];
+int overload_fmacs_size = 0;
+
+/* GLOBAL FILE FCN-WITH-DEFAULT-VALUE-ARGS TRACKING STRUCTURES */
+// holds all global fcn def's found in file with default arg values
+struct function_with_default_value_instance {
+  char fcn_name[MAX_TOKEN_NAME_LENGTH]; // fcn instance name
+  int total_args;    // fcn's total args (both dflt & not)
+  int total_dflts;   // fcn's total dflt args
+  int dflt_idxs[MAX_ARGS_PER_FCN]; // fcn's dflt arg idxs wrt its arg list
+  char dflt_vals[MAX_ARGS_PER_FCN][MAX_LENGTH_PER_ARG];      // fcn's dflt values
+} all_dflt_fcns[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM]; // struct to hold all dflt-valued fcn instances
+int all_dflt_fcns_size = 0; // total functions registered
+
+// holds defaulted-arg function instances, derived from "all_dflt_fcns"
+struct unique_function_default_values {
+  char name[MAX_TOKEN_NAME_LENGTH]; // defaulted-arg (& possibly overoaded) fcn name
+  int arg_sizes_length; // # of other overoaded fcns w/ same name
+  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE];   // arg length(s) (> 1 if overloaded)
+  int total_dflts[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // total arg dflt(s) (> 1 if overloaded)
+  int dflt_idxs[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE][MAX_ARGS_PER_FCN]; // arg dflt idx(s) (> 1 if overloaded)
+  char dflt_vals[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE][MAX_ARGS_PER_FCN][MAX_LENGTH_PER_ARG]; // arg dflt val(s) (> 1 if overloaded)
+} unique_dflt_fcns[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];   // dflt-arg fcn instance
+int unique_dflt_fcns_size = 0; // total unique fcn names associated w/ having 1+ dflt args
+
+
+// DECLASS.C STRUCTS
 
 // stores class names, & their associated methods
 struct class_info { 
@@ -264,6 +327,13 @@ int TOTAL_ALLOC_FCNS = 4; // increases if user defines their own allocation fcns
 // user can add up to 100 of their own alloc fcns
 char ALLOC_FCNS[104][MAX_TOKEN_NAME_LENGTH * 2] = { "malloc", "calloc", "smrtmalloc", "smrtcalloc" };
 
+// cumulative filesizes of the main program & its #included "DECLASS_H_" header files
+long long CUMULATIVE_FILESIZE = 0;
+// array of the "DECLASS_H_" header files included.
+// name length is + 8 to account for "delass_" prefix
+char DECLASS_HEADER_FILE_NAMES[MAX_DECLASS_HEADER_FILES][MAX_TOKEN_NAME_LENGTH + 8];
+int TOTAL_DECLASS_HEADER_FILES = 0;
+
 // basic c type keywords:
 #define TOTAL_TYPES 14
 char basic_c_types[TOTAL_TYPES][11] = {
@@ -279,6 +349,11 @@ bool COLA_C_main_execution(bool, char*);
 /* BRACE-ADDITION FUNCTION */
 bool at_smrtassert_or_compile_or_cola_macro_flag(char*);
 void add_braces(char []);
+/* "DECLASS_H_" HEADER FILE LINKING FUNCTIONS */
+void scrape_and_include_all_DECLASS_H_headers(char*);
+bool is_valid_DECLASS_H_header_file(char*);
+bool is_unique_DECLASS_H_header(char*);
+void parse_file_for_DECLASS_H_header_files(char*);
 /* MESSAGE FUNCTIONS */
 void get_invalid_code_snippet(const char*, const char*, char []); // defined in COLA.C below
 void process_cmd_flag(char*, bool*, bool*);
@@ -527,6 +602,8 @@ int main(int argc, char *argv[]) {
   trim_sequential_spaces(file_contents);
   // confirm user didn't use "DC_" to prefix any token names
   confirm_no_reserved_DC_prefix(file_contents);
+  // check for & scrape any "#include"'d "DECLASS_H_" header files & prepend them to "file_contents"
+  scrape_and_include_all_DECLASS_H_headers(file_contents);
   // wrap braces around single-line "braceless" if, else if, else, while, & for loops
   add_braces(file_contents);
   // simulate as if "#define DECLASS_NCOMPILE" were found if command processor DNE
@@ -709,6 +786,7 @@ int main(int argc, char *argv[]) {
     printf("\n");
   printf(" >> Terminating Declassifier.\n");
   printf("=============================\n\n");
+
   return 0;
 }
 
@@ -821,6 +899,117 @@ void add_braces(char file_contents[]) {
 }
 
 /******************************************************************************
+* "DECLASS_H_" HEADER FILE LINKING FUNCTIONS
+******************************************************************************/
+
+// parses the file for any "DECLASS_H_" header files & splices them in to the front of the "file_buffer"
+void scrape_and_include_all_DECLASS_H_headers(char *file_buffer) {
+  int original_declass_header_file_count = 0, i;
+  char header_file_contents[MAX_FILESIZE];
+  while(true) { // in case "DECLASS_H_" header files included their own other "DECLASS_H_" header files
+    original_declass_header_file_count = TOTAL_DECLASS_HEADER_FILES;
+    parse_file_for_DECLASS_H_header_files(file_buffer);
+    // if new "DECLASS_H_" header files not found
+    if(TOTAL_DECLASS_HEADER_FILES <= original_declass_header_file_count) break;
+    for(i = original_declass_header_file_count; i < TOTAL_DECLASS_HEADER_FILES; ++i)
+      if(is_valid_DECLASS_H_header_file(DECLASS_HEADER_FILE_NAMES[i])) {
+        // if valid file to scrape & prepend to current file buffer, 
+        // scrape header file contents & prepend to current file buffer
+        FLOOD_ZEROS(header_file_contents, MAX_FILESIZE);
+        FSCRAPE(header_file_contents, DECLASS_HEADER_FILE_NAMES[i]);
+        sprintf(&header_file_contents[strlen(header_file_contents)], "%s\n", file_buffer);
+        FLOOD_ZEROS(file_buffer, MAX_FILESIZE);
+        strcpy(file_buffer, header_file_contents);
+        // remove all new potential comments, trime redundant whitespaces, & check for the reserved "DC_" prefix
+        whitespace_all_comments(file_buffer);
+        trim_sequential_spaces(file_buffer);
+        confirm_no_reserved_DC_prefix(file_buffer);
+      }
+  }
+}
+
+// confirms "DECLASS_H_" header file exists & returns (if "quit" not chosen by user)
+// whether to include the header file's contents (if valid) or not (if user chose "continue")
+bool is_valid_DECLASS_H_header_file(char *filename) {
+  struct stat buf;
+  bool parse_header_file = true;
+  if(stat(filename, &buf)) {
+    fprintf(stderr, "\033[1mdeclass.c:%03d: \033[33mWARNING:\033[0m\033[1m DECLASS HEADER FILE \"%s\" WAS NOT FOUND!\033[0m\n", __LINE__, filename);
+    ask_user_whether_to_quit_or_continue_declassification();
+    parse_header_file = false;
+  } else {
+    CUMULATIVE_FILESIZE += (buf.st_size + 1); // +1 for '\n' btwn files
+    if(CUMULATIVE_FILESIZE > MAX_FILESIZE || buf.st_size == 0) {
+      if(CUMULATIVE_FILESIZE > MAX_FILESIZE) {
+        fprintf(stderr, "\033[1mdeclass.c:%03d: \033[33mWARNING:\033[0m\033[1m CUMULATIVE FILESIZE %lld EXCEEDED!\033[0m\n", __LINE__, CUMULATIVE_FILESIZE);
+        fprintf(stderr, " >> DECLASS HEADER FILE \"%s\" SIZE %lld BYTES, IN ADDITION TO THE MAIN PROGRAM &\n", filename, buf.st_size);
+        fprintf(stderr, "    ITS SPLICED-IN \"declass_\" HEADER FILES, EXCEEDED THE %d BYTE CAP!\n", MAX_FILESIZE); 
+        fprintf(stderr, " >> RAISE 'MAX_FILESIZE' MACRO LIMIT!\n");
+      } else fprintf(stderr, "\033[1mdeclass.c:%03d: \033[33mWARNING:\033[0m\033[1m CAN'T DECLASSIFY AN EMPTY FILE!\033[0m\n", __LINE__); 
+      ask_user_whether_to_quit_or_continue_declassification();
+      parse_header_file = false;
+    }
+  }
+  return parse_header_file;
+}
+
+// confirms declass header not already stored (prevents duplicate inclusions/splicing in)
+bool is_unique_DECLASS_H_header(char *scraped_declass_header_name) {
+  for(int i = 0; i < TOTAL_DECLASS_HEADER_FILES; ++i)
+    if(strcmp(DECLASS_HEADER_FILE_NAMES[i], scraped_declass_header_name) == 0)
+      return false;
+  return true;
+}
+
+// parses file to scrape any "DECLASS_H_" prefixed header files 
+// & whitespaces them out of the buffer
+void parse_file_for_DECLASS_H_header_files(char *file_buffer) {
+  bool in_a_string = false, in_a_char = false, in_token_scope = true;
+  char *p = file_buffer, *q, *scout, *include_start, scraped_declass_header_name[MAX_TOKEN_NAME_LENGTH + 8];
+  char bad_code_buffer[BAD_CODE_BUFFER_LENGTH];
+  int include_lowercased_declass_header_file = 0;
+  while(*p != '\0') {
+    account_for_string_char_scopes(&in_a_string, &in_a_char, &in_token_scope, p);
+    if(in_token_scope && is_at_substring(p, "#include") && !VARCHAR(*(p + 8))) { // at a potential "DECLASS_H_" header file
+      include_start = p;
+      scout = p - (p != file_buffer);               // confirm at a valid "#include"
+      // skip optional whitespace prior "#include"
+      while(IS_WHITESPACE(*scout) && *scout != '\n' && scout != file_buffer) --scout; 
+      // if invalid #include
+      if(scout != file_buffer && *scout != '\n') { 
+        ++p; 
+        continue;
+      }
+      p += 8;
+      // skip optional whitespace after "#include"
+      while(*p != '\0' && IS_WHITESPACE(*p)) ++p; 
+      ++p; // skip '"' or '<' (a bit presumptuous someone might have a "DECLASS_H_" header in their sys files but hey its called future proofing)
+      // if not a declass header
+      if(!is_at_substring(p, "DECLASS_H_") && !is_at_substring(p, "declass_h_")) continue;
+      scout = p; // check for ".h" extension
+      while(VARCHAR(*scout)) ++scout;
+      // if at a valid declass header file!
+      if(is_at_substring(scout, ".h")) { 
+        FLOOD_ZEROS(scraped_declass_header_name, MAX_TOKEN_NAME_LENGTH + 8);
+        q = scraped_declass_header_name;
+        // copy declass header file name
+        while(*p != '\0' && no_overlap(*p, "\">")) *q++ = *p++; 
+        *q = '\0', ++p;
+        // white-out "DECLASS_H_" header's inclusion
+        while(*include_start != '\0' && include_start != p)
+          *include_start++ = ' '; 
+        // add "DECLASS_H_" header filename if not already found earlier (prevents double inclusion)
+        if(is_unique_DECLASS_H_header(scraped_declass_header_name)) {
+          strcpy(DECLASS_HEADER_FILE_NAMES[TOTAL_DECLASS_HEADER_FILES], scraped_declass_header_name);
+          ++TOTAL_DECLASS_HEADER_FILES;
+        }
+      }
+    }
+    ++p;
+  }
+}
+
+/******************************************************************************
 * MESSAGE FUNCTIONS
 ******************************************************************************/
 
@@ -889,16 +1078,17 @@ void confirm_valid_file(char *filename) {
   struct stat buf;
   if(stat(filename, &buf)) {
     declass_ERROR_ascii_art();
-    fprintf(stderr, " >> FILE \"%s\" DOES NOT EXIST!\n", filename);
-    fprintf(stderr, " >> Terminating Declassifier.\n\n");
+    fprintf(stderr, "\033[1m >> FILE \"%s\" DOES NOT EXIST!\033[0m\n", filename);
+    fprintf(stderr, ">> Terminating Declassifier.\n\n");
     exit(EXIT_FAILURE);
   }
+  CUMULATIVE_FILESIZE += buf.st_size;
   if(buf.st_size > MAX_FILESIZE || buf.st_size == 0) {
     declass_ERROR_ascii_art();
     if(buf.st_size > MAX_FILESIZE) {
-      fprintf(stderr, " >> FILE \"%s\" SIZE %lld BYTES EXCEEDS %d BYTE CAP!\n",filename,buf.st_size,MAX_FILESIZE); 
+      fprintf(stderr, "\033[1m >> FILE \"%s\" SIZE %lld BYTES EXCEEDS %d BYTE CAP!\033[0m\n", filename, buf.st_size, MAX_FILESIZE); 
       fprintf(stderr, " >> RAISE 'MAX_FILESIZE' MACRO LIMIT!\n");
-    } else fprintf(stderr, " >> CAN'T DECLASSIFY AN EMPTY FILE!\n"); 
+    } else fprintf(stderr, "\033[1m >> CAN'T DECLASSIFY AN EMPTY FILE!\033[0m\n"); 
     fprintf(stderr, " >> Terminating Declassifier.\n\n");
     exit(EXIT_FAILURE);
   }
@@ -3244,51 +3434,10 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
  * FCNS & MACROS BY THEIR # OF ARGS & .C FILES ASSIGNING THEIR FCNS DEFAULT VALUES *
  ************************************************************************************/
 
-/* GLOBAL FILE FCN/MACRO & OVERLOADING TRACKING STRUCTURES */
-// holds all global fcn & macro def's found in file
-struct function_macro_instance {
-  char name[MAX_TOKEN_NAME_LENGTH]; // defined fcn/macro name
-  int args;            // number of args
-  bool overloaded;     // whether its overloaded
-  bool is_a_prototype; // whether is a function prototype
-  bool is_a_macro;     // whether is a functionlike macro
-} fmacs[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];
-int fmacs_size = 0;
-// holds function & macro overload instances, derived from "fmacs"
-struct function_macro_overload_instance {
-  char name[MAX_TOKEN_NAME_LENGTH]; // overoaded fcn/macro name
-  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE];   // different arg lengths per overload
-  int arg_sizes_length; // # of other overoaded fcn/macros w/ same name
-  bool is_a_macro[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // whether each overload is a functionlike macro
-} overload_fmacs[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];
-int overload_fmacs_size = 0;
-
-/* GLOBAL FILE FCN-WITH-DEFAULT-VALUE-ARGS TRACKING STRUCTURES */
-// holds all global fcn def's found in file with default arg values
-struct function_with_default_value_instance {
-  char fcn_name[MAX_TOKEN_NAME_LENGTH]; // fcn instance name
-  int total_args;    // fcn's total args (both dflt & not)
-  int total_dflts;   // fcn's total dflt args
-  int dflt_idxs[MAX_ARGS_PER_FCN]; // fcn's dflt arg idxs wrt its arg list
-  char dflt_vals[MAX_ARGS_PER_FCN][MAX_LENGTH_PER_ARG];      // fcn's dflt values
-} all_dflt_fcns[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM]; // struct to hold all dflt-valued fcn instances
-int all_dflt_fcns_size = 0; // total functions registered
-// holds defaulted-arg function instances, derived from "all_dflt_fcns"
-struct unique_function_default_values {
-  char name[MAX_TOKEN_NAME_LENGTH]; // defaulted-arg (& possibly overoaded) fcn name
-  int arg_sizes_length; // # of other overoaded fcns w/ same name
-  int arg_sizes[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE];   // arg length(s) (> 1 if overloaded)
-  int total_dflts[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE]; // total arg dflt(s) (> 1 if overloaded)
-  int dflt_idxs[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE][MAX_ARGS_PER_FCN]; // arg dflt idx(s) (> 1 if overloaded)
-  char dflt_vals[MAX_UNIQUE_OVERLOADS_PER_OVERLOADED_FCN_MACRO_INSTANCE][MAX_ARGS_PER_FCN][MAX_LENGTH_PER_ARG]; // arg dflt val(s) (> 1 if overloaded)
-} unique_dflt_fcns[MAX_TOTAL_NUMBER_OF_FUNCTIONS_AND_MACROS_IN_PROGRAM];   // dflt-arg fcn instance
-int unique_dflt_fcns_size = 0; // total unique fcn names associated w/ having 1+ dflt args
-
 /* STRING, CHAR, AND GLOBAL SCOPES STATUS UPDATING && STRING HELPER FUNCTIONS */
 void handle_string_char_brace_scopes(bool*, bool*, int*, char*);
-/* COMMENT, CONDITIONAL DIRECTIVE, & MACRO-BODY SKIP/CPY FUNCTIONS */
+/* COMMENT & MACRO-BODY SKIP/CPY FUNCTIONS */
 char *cola_skip_comments(char*, char*);
-char *cola_skip_conditional_directives(char*, char*);
 char *skip_macro_body(char*);
 /* "fmacs" (FUNCTION MACRO INSTANCES) STRUCT HELPER FUNCTIONS */
 int non_prototype_duplicate_instance_in_fmacs(char*, int);
@@ -3452,7 +3601,7 @@ void handle_string_char_brace_scopes(bool *in_a_string, bool *in_a_char, int *in
 }
 
 /******************************************************************************
-* COMMENT, CONDITIONAL DIRECTIVE, & MACRO-BODY SKIP/CPY FUNCTIONS
+* COMMENT & MACRO-BODY SKIP/CPY FUNCTIONS
 ******************************************************************************/
 
 // if at a comment instance in "*read" skips over them (& copies to "*write" "write" != NULL)
@@ -3469,31 +3618,6 @@ char *cola_skip_comments(char *read, char *write) {
       if(cpy_comments) *write++ = *read++; else ++read;            // skip/copy comment w/o parsing
     }
     if(cpy_comments) *write++ = *read++, *write++ = *read++; else read += 2;                     // skip last '*' & '/'
-  }
-  return read;
-}
-
-// if at a preprocessor conditional directive instance in "*read", skips over 
-// (& copies to "*write" if "write" != NULL)
-char *cola_skip_conditional_directives(char *read, char *write) {
-  bool cpy_dirs = (write != NULL);
-  // conditional directives = #if, #ifdef, #ifndef, #elif, #else, & #endif
-  char *scout = read - 1;
-  bool in_a_string = false, in_a_char = false;
-  int in_global_scope = 0, in_conditional_scope = 1;
-  if(is_at_substring(read, "#if")) {
-    // global outer (non-nested) conditional directives only defined after '\n' & optional whitespace sequence
-    while(*scout == ' ' || *scout == '\t') --scout;
-    if(*scout == '\n') { // at a conditional directive
-      if(cpy_dirs) *write++ = *read++, *write++ = *read++, *write++ = *read++; else read += 3; // skip/cpy initial "#if"
-      while(in_conditional_scope > 0) {
-        handle_string_char_brace_scopes(&in_a_string, &in_a_char, &in_global_scope, read);
-        if(!in_a_string && !in_a_char && is_at_substring(read, "#if"))         ++in_conditional_scope;
-        else if(!in_a_string && !in_a_char && is_at_substring(read, "#endif")) --in_conditional_scope;
-        if(in_conditional_scope <= 0) break;
-        if(cpy_dirs) *write++ = *read++; else ++read;
-      }
-    }
   }
   return read;
 }
@@ -3857,9 +3981,8 @@ bool is_function_prototype(char *r) {
 * MAIN ACCOUNTING FUNCTION FOR FUNCTION/MACRO DEFINITIONS IN FILE
 ******************************************************************************/
 
-// register all functions & macros declared globaclly outside of conditional
-// preprocessor directives, along w/ their arg number & overloaded status
-// (fills "fmacs" which then gets filtered into "overload_fmacs" on return to main)
+// register all functions & macros declared globally  along w/ their arg # & overloaded 
+// status (fills "fmacs" which then gets filtered into "overload_fmacs" on return to main)
 void register_all_global_function_macro_defs(char *read) {
   char *r = read, *scout, function_name[MAX_TOKEN_NAME_LENGTH], bad_code_buffer[BAD_CODE_BUFFER_LENGTH];
   bool in_a_string = false, in_a_char = false, overload, prototype, macro;
@@ -3869,11 +3992,8 @@ void register_all_global_function_macro_defs(char *read) {
   // register all function/macro names in file to detect overloads prior to prefixing invocations
   while(*r != '\0') {
     handle_string_char_brace_scopes(&in_a_string, &in_a_char, &in_global_scope, r);
-    if(!in_a_string && !in_a_char) {
+    if(!in_a_string && !in_a_char)
       r = cola_skip_comments(r, NULL);
-      if(*r != '\0' && in_global_scope == 0) 
-        r = cola_skip_conditional_directives(r, NULL);
-    }
     if(!in_a_string && !in_a_char && in_global_scope == 0 && *r == '(') { // potential function/macro
       // check if at a macro, & if so confirm its "functionlike" (can't overload non-functionlike macros)
       macro = is_at_macro_name(r);
@@ -3957,11 +4077,8 @@ void prefix_overloaded_and_splice_default_value_instances(char *read, char *writ
   while(*r != '\0') {
     // account for scopes
     handle_string_char_brace_scopes(&in_a_string, &in_a_char, &ignore_arg, r);
-    if(!in_a_string && !in_a_char) {
+    if(!in_a_string && !in_a_char)
       r = cola_skip_comments(r, w), w += strlen(w);
-      if(!in_a_string && !in_a_char && *r != '\0') 
-        r = cola_skip_conditional_directives(r, w), w += strlen(w);
-    }
     // -:- PARSE FOR DEFAULTS -:- 
     // check for potential fcn invocation that has default args values
     if(!in_a_string && !in_a_char && VARCHAR(*r) && !VARCHAR(*(r-1))) {
@@ -4122,7 +4239,7 @@ int unique_dflt_fcns_instance_idx(int all_dflt_fcns_idx) {
       // add # of args as a new overload to "unique_dflt_fcns" instance's "arg_sizes[]"
       return (k == unique_dflt_fcns[j].arg_sizes_length) ? j : -1;
     }
-  return -1; 
+  return -1;
 }
 
 // returns the # of dflt'd args for the total # of args instance in "unique_dflt_fcns[unique_dflt_fcns_idx]"
