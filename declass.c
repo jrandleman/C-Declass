@@ -210,6 +210,7 @@
  *   DENOTING HEADER FILES TO ALSO BE PARSED BY DECLASS.C:                  *
  *     (0) name must be prefixed w/ "DECLASS_H_" or "declass_h_"            *
  *     (1) name must contain the ".h" file extension                        * 
+ *         (*) IE: #include "DECLASS_H_yourHeader.h"                        *
  *   IMPLEMENTATION:                                                        *
  *     (0) declass.c supports including header files that already contain   *
  *         classes (& arg # overloads/fcn dflt values if COLA not disabled) *
