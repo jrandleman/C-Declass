@@ -214,7 +214,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * _Allows writing 1 class for several files, reducing redundant code_
 ### Implementation:
 * _Header files are prepended to the main file for a monolithic code base_
-  * _Result must **cumulatively** be less bytes than the_ `MAX_FILESIZE` _(default 1 gigabyte) macro!_
+  * _Result must **cumulatively** be less bytes than the_ `MAX_FILESIZE` _(default 1 megabyte) macro!_
 * _Headers **not** prefixed_ `"DECLASS_H_"` _or_ `"declass_h_"` _will **not** be prepended to main codebase by_ `declass.c`
 ### Example:
 ```c
