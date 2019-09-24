@@ -27,7 +27,7 @@
 // initialize array with zero's (wipes garbage memory)
 #define FLOOD_ZEROS(arr, len) ({for(int arr_i = 0; arr_i < len; ++arr_i) arr[arr_i] = 0;})
 // file, class, & object limitations => all self imposed for memory's sake, increment as needed
-#define MAX_FILESIZE 1000001 // 1 gigabyte + '\0'
+#define MAX_FILESIZE 1000001 // 1 megabyte + '\0'
 #define MAX_OBJECTS 1000
 #define MAX_CLASSES 1000
 #define MAX_MEMBERS_PER_CLASS 100
