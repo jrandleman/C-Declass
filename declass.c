@@ -567,7 +567,8 @@ void smrtfree(void *ptr) {\n\
 
 int main(int argc, char *argv[]) {
   // confirm passed .c file in cmd line arg to declass
-  if(argc<2 || argc>6 || argv[argc-1][strlen(argv[argc-1])-2] != '.' || argv[argc-1][strlen(argv[argc-1])-1] != 'c') 
+  if(argc<2 || argc>6 || argv[argc-1][strlen(argv[argc-1])-2] != '.' || 
+    (argv[argc-1][strlen(argv[argc-1])-1] != 'c' && argv[argc-1][strlen(argv[argc-1])-1] != 'C'))
     declass_missing_Cfile_alert();
   // process cmd line flags: 1) determine if displaying class info at exit: "-l"
   //                         2) determine if not to compile: "-no-compile"
