@@ -1,5 +1,5 @@
 # Declass-C
-## Declassifier Enables Classes in C by Pre-Preprocessing & Compiling Files!
+## Declassifier Enables Classes in C by Preprocessing & Compiling Files!
 #### **_Ctors/Dtors, Member Default Values/Allocation, Methods, Object Arrays/Ptrs/Containment, Smart Ptrs, Cola Polymorphism, Cola Default Argument Values, and more!_**
 -------------------------------------------------------------------------
 
@@ -12,7 +12,7 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 ### Command-Line Arguments:
 **1.** `-l`: _Show Parsed Class-Object & Cola-Overloading/Default-Value Data!_</br>
 **2.** `-save-temps`: _Save the Temp File Made Prior to Passing File to_ `cola.c` _!_</br>
-**3.** `-no-compile`: _No Autonomous Compilation (like_ "[`#define DECLASS_NCOMPILE`](#declass-cs-pre-preprocessor-specialization-macro-flags)"_) for converted files!_</br>
+**3.** `-no-compile`: _No Autonomous Compilation (like_ "[`#define DECLASS_NCOMPILE`](#declass-cs-preprocessor-specialization-macro-flags)"_) for converted files!_</br>
 **4.** `-mortal-errors`: _Ask client to quit or continue at fatal parsing errors (rather than self-terminating)!_</br> 
 * _Invocation:_ `./declass <cmd line flag> yourFile.c`</br>
 * _Can Combine Any of the Above, so Long as_ `yourFile.c` _is the Last Arg:_
@@ -20,10 +20,10 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
   * ***INVALID:*** `$ ./declass -no-compile -l yourFile.c -save-temps`
 ### Implementation:
 **1.** _Processed C programs using classes are copied with a_ "`_DECLASS`" _extension & converted to valid C_</br>
-**2.** _Unless deactivated, see_ [Macro Flag (9)](#declass-cs-pre-preprocessor-specialization-macro-flags)_, programs are then passed to my_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _polymorphic parser_</br>
+**2.** _Unless deactivated, see_ [Macro Flag (9)](#declass-cs-preprocessor-specialization-macro-flags)_, programs are then passed to my_ [`cola.c`](#enables-my-colac-polymorphic-parser-by-default) _polymorphic parser_</br>
 **3.** _Converted programs are automatically compiled in_ `C11`_'s standard via_ `GCC` _as a binary file w/ the original name_</br>
   * `yourFile.c`_=declass=>_`yourFile_DECLASS_PRECOLA.c`_=cola=>_`yourFile_DECLASS.c`_=compile=>_`yourFile`
-  * [Macro Flags 7-8](#declass-cs-pre-preprocessor-specialization-macro-flags) _can disable both the_ `C11` _standard as well as automatic compiling as a whole_
+  * [Macro Flags 7-8](#declass-cs-preprocessor-specialization-macro-flags) _can disable both the_ `C11` _standard as well as automatic compiling as a whole_
 ### References:
 * _Provided_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _demos classes, and_ [declass_SampleExec_DECLASS.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec_DECLASS.c) _shows conversion_
 * _Adhere to the_ [10 Caveats](#declass-cs-10-caveats-straight-from-declassc) _& use_ [declass_SampleExec.c](https://github.com/jrandleman/Declass-C/blob/master/declass_SampleExec.c) _as an operations reference!_
@@ -164,9 +164,9 @@ $ ./declass yourFile.c // ./declass -l yourFile.c
 * **WARNING: *an immortal object's contained members are also immortal!***
 ### Object Arguments are Always "immortal":
 * _As placeholders, the passed object they represent aren't out of scope once the fcn ends (no double Dtor)_
-* [Macro Flag (3)](#declass-cs-pre-preprocessor-specialization-macro-flags) _below disables **all** immortal objects **except** object arguments_
+* [Macro Flag (3)](#declass-cs-preprocessor-specialization-macro-flags) _below disables **all** immortal objects **except** object arguments_
 --------------
-## Declass-C's Pre-Preprocessor Specialization Macro Flags:
+## Declass-C's Preprocessor Specialization Macro Flags:
 ### By Precedence:
 0) ```c 
    #define DECLASS_IGNORE       // "declass.c" won't convert file
