@@ -1,4 +1,4 @@
-// AUTHOR: JORDAN RANDLEMAN - DECLASSIFIER TO PRE-PREPROCESS .C FILES USING CLASSES
+// AUTHOR: JORDAN RANDLEMAN - DECLASSIFIER TO PREPROCESS .C FILES USING CLASSES
 // Email jrandleman@scu.edu or see https://github.com/jrandleman for support
 /**
  * compile: $ gcc -std=c99 -o declass declass.c
@@ -3432,8 +3432,8 @@ int parse_class(char *class_instance, char *NEW_FILE, int *j) {
 /************************************************************************************
  * ADAPTED/INTEGRATED FROM MY COLA.C PARSER @ https://github.com/jrandleman/Cola   *
  ************************************************************************************
- * cola.c: C OVERLOADED LENGTH ARGUMENTS: PRE-PREPROCESS .C FILES OVERLOADING      *
- * FCNS & MACROS BY THEIR # OF ARGS & .C FILES ASSIGNING THEIR FCNS DEFAULT VALUES *
+ * cola.c: C OVERLOADED LENGTH ARGUMENTS: PREPROCESS .C FILES OVERLOADING FCNS &   *
+ *         MACROS BY THEIR # OF ARGS, & ASSIGNING THEIR FCNS DEFAULT ARG VALUES    *
  ************************************************************************************/
 
 /* STRING, CHAR, AND GLOBAL SCOPES STATUS UPDATING && STRING HELPER FUNCTIONS */
