@@ -470,12 +470,12 @@ int main() {
 
   // Object pointer
   printf("\nWorking with a \"Student\" object pointer:\n");
-  Student *TJ = &class[5]; // object ptr assigned address of 6th object in object array
-  TJ -> assignName("TJ");  // arrow notation to invoke ptr object members & methods
+  Student *JT = &class[5]; // object ptr assigned address of 6th object in object array
+  JT -> assignName("JT");  // arrow notation to invoke ptr object members & methods
   printf("\t");
-  TJ->show();
-  long tjId = TJ-> getId();
-  printf("\tTJ \"Student\" object pointer's ID: %ld\n", tjId);
+  JT->show();
+  long jtId = JT-> getId();
+  printf("\tJT \"Student\" object pointer's ID: %ld\n", jtId);
 
 
   // Object pointer constructor
@@ -511,7 +511,7 @@ int main() {
   // Passing an object by value, pointer, & array to another function
   printf("\nPassing an object pointer, array, & value to another function:\n");
   printf("\t");
-  showAllNames(jordanCR, TJ, class);
+  showAllNames(jordanCR, JT, class);
 
 
   // Having a function return an object
@@ -556,8 +556,8 @@ int main() {
   SiliconValley.setRegionName("Silicon Valley");
   SiliconValley.addSchool(Scu);
   SiliconValley.schools[0].addName("S C U"); // accessing immediate contained object member's method (valid by caveat 8)
-  char scuNames[10][20] = {"Joel","Aimee","Danny","Kailyn","Ashley","Brendan","Olivia","Tanner","Guillermo","John"};
-  float scuGpas[10]     = {4.0, 9.0, 10.0, 7.0, 8.0, 0.5, 6.0, 3.9, 4.0, 3.9};
+  char scuNames[10][20] = {"Dennis","Ritchie","Ken","Thompson","Bjarne","Stroustrup","John","McCarthy","Haskell","Curry"};
+  float scuGpas[10]     = {9.5, 9.0, 10.0, 10.5, 9.6, 9.1, 80.0, 80.8, 20.0, 20.2};
   long scuIds[10]       = {1000001, 1000002, 1000003, 1000004, 1000005, 1000006, 1000007, 1000008, 1000009, 1000010};
   SantaClara.addStudents(scuNames, scuGpas, scuIds);
   SiliconValley.addSchool(SantaClara);
