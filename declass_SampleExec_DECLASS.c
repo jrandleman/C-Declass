@@ -462,12 +462,12 @@ int main() {
 
 
   printf("\nWorking with a \"Student\" object pointer:\n");
-  Student *TJ = &class[5];
-  DC_Student_assignName("TJ", TJ);
+  Student *JT = &class[5];
+  DC_Student_assignName("JT", JT);
   printf("\t");
-  DC_Student_show(TJ);
-  long tjId = DC_Student_getId(TJ);
-  printf("\tTJ \"Student\" object pointer's ID: %ld\n", tjId);
+  DC_Student_show(JT);
+  long jtId = DC_Student_getId(JT);
+  printf("\tJT \"Student\" object pointer's ID: %ld\n", jtId);
 
 
   printf("\nAllocating and constructing a \"Student\" object pointer in a single line:\n");
@@ -497,7 +497,7 @@ int main() {
 
   printf("\nPassing an object pointer, array, & value to another function:\n");
   printf("\t");
-  showAllNames(jordanCR, TJ, class);
+  showAllNames(jordanCR, JT, class);
 
 
   printf("\nHaving a function make & return a \"College\" object:\n");
@@ -538,8 +538,8 @@ int main() {
   DC_Region_setRegionName("Silicon Valley", &SiliconValley);
   DC_Region_addSchool(Scu, &SiliconValley);
   DC_College_addName("S C U", &SiliconValley.schools[0]);
-  char scuNames[10][20] = {"Joel","Aimee","Danny","Kailyn","Ashley","Brendan","Olivia","Tanner","Guillermo","John"};
-  float scuGpas[10] = {4.0, 9.0, 10.0, 7.0, 8.0, 0.5, 6.0, 3.9, 4.0, 3.9};
+  char scuNames[10][20] = {"Dennis","Ritchie","Ken","Thompson","Bjarne","Stroustrup","John","McCarthy","Haskell","Curry"};
+  float scuGpas[10] = {9.5, 9.0, 10.0, 10.5, 9.6, 9.1, 80.0, 80.8, 20.0, 20.2};
   long scuIds[10] = {1000001, 1000002, 1000003, 1000004, 1000005, 1000006, 1000007, 1000008, 1000009, 1000010};
   DC_College_addStudents(scuNames, scuGpas, scuIds, &SantaClara);
   DC_Region_addSchool(SantaClara, &SiliconValley);
@@ -556,7 +556,7 @@ if(charmR.DC_DTR){DC__NOT_Student_(&charmR);charmR.DC_DTR=NULL;}
 if(tessaR.DC_DTR){DC__NOT_Student_(&tessaR);tessaR.DC_DTR=NULL;}
 DC__Student_UDTOR_ARR(class);
 DC__Student_UDTOR_ARR(group);
-if(TJ&&TJ->DC_DTR){DC__NOT_Student_(TJ);TJ=NULL;}
+if(JT&&JT->DC_DTR){DC__NOT_Student_(JT);JT=NULL;}
 if(Scu.DC_DTR){DC__NOT_College_(&Scu);Scu.DC_DTR=NULL;}
 if(SantaClara.DC_DTR){DC__NOT_College_(&SantaClara);SantaClara.DC_DTR=NULL;}
 if(willAR.DC_DTR){DC__NOT_Student_(&willAR);willAR.DC_DTR=NULL;}
